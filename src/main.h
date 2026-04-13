@@ -12,33 +12,99 @@
 // ~Begin of Enums
 typedef enum EntityType : uint8_t {
     ENTITY_TYPE_UNDEFINED = 0,
-    ENTITY_TYPE_ACTOR = 1,
-    ENTITY_TYPE_PLAYER = 2
+    ENTITY_TYPE_CHARACTER = 1,
+    ENTITY_TYPE_PLAYER = 2,
+    ENTITY_TYPE_PROJECTILE = 3,
 } EntityType;
+
+typedef enum ProjectileType : uint8_t {
+    PROJECTILE_TYPE_UNDEFINED = 0,
+    PROJECTILE_TYPE_CRYSTAL_SHARD = 1,
+    PROJECTILE_TYPE_FIREBALL = 2,
+    PROJECTILE_TYPE_BOMB = 3,
+    PROJECTILE_TYPE_NATURE_SPIKE = 4,
+} ProjectileType;
+
+typedef enum AssetSpriteType : uint8_t {
+    ASSET_SPRITE_TYPE_PLAYER = 0,
+    ASSET_SPRITE_TYPE_GRASS = 1,
+    ASSET_SPRITE_TYPE_BAT = 2,
+    ASSET_SPRITE_TYPE_COUNT = 3
+} AssetSpriteType;
+
+typedef enum AssetSoundType : uint8_t {
+    ASSET_SOUND_TYPE_DAMAGE = 0,
+    ASSET_SOUND_TYPE_EXPLOSION = 1,
+    ASSET_SOUND_TYPE_LEVEL_UP = 2,
+    ASSET_SOUND_TYPE_XP_GAIN = 3,
+    ASSET_SOUND_TYPE_PLAYER_DAMAGE = 4,
+    ASSET_SOUND_TYPE_COUNT = 5
+} AssetSoundType;
+
+typedef enum AssetMusicType : uint8_t {
+    ASSET_MUSIC_TYPE_COMBAT = 0,
+    ASSET_MUSIC_TYPE_COUNT = 1
+} AssetMusicType;
 // ~End of Enums
 
 // ~Begin of Structs
-typedef struct Actor{
-    uint16_t id;
-    bool bIsActive;
-    Vector2 position;
+typedef struct Character{
+    float health;
+    float maxHealth;
     float speed;
-} Actor;
+} Character;
+
+typedef struct Projectile{
+    float damage;
+    float lifeTime;
+    uint8_t penetration;
+    uint16_t ownerID;
+} Projectile;
 
 typedef struct Entity{
     EntityType type;
 
+    uint16_t id;
+    bool bIsActive;
+    Vector2 position;
+    Vector2 velocity;
+    float radius;
+
     union
     {
-        Actor actor;
+        Character character;
+        Projectile projectile;
     };
 } Entity;
 
+typedef struct Assets{
+    Texture2D sprites[ASSET_SPRITE_TYPE_COUNT];
+    Sound sounds[ASSET_SOUND_TYPE_COUNT];
+    Music musics[ASSET_MUSIC_TYPE_COUNT];
+} Assets;
+
+typedef struct PlayerStats{
+    float currentXP;
+    float nextLevelXP;
+
+    float healthMultiplier;
+    float damageMultiplier;
+    float attackSpeedMultiplier;
+    float movementSpeedMultiplier;
+    float sizeMultiplier;
+    float lifeStealMultiplier;
+    float xpMultiplier;
+} PlayerStats;
+
 typedef struct GlobalVariables{
+    Assets assets;
+    
     Camera2D camera;
+    PlayerStats playerStats;
 
     Entity entities[MAX_ENTITIES_AMOUNT];
     uint16_t entityCount;
+
     uint16_t playerIndex;
 } GlobalVariables;
 // ~End of Structs
@@ -59,19 +125,23 @@ void Core_CloseGame();
 int Core_IsGameReadyToClose();
 // ~End of Core Implementation
 
+// ~Begin of Player Implementation
+Camera2D Player_GenerateCamera();
+Entity Player_GeneratePlayer();
+PlayerStats Player_GeneratePlayerStats();
+void Player_ProcessMovement(Entity* player, float deltaTime);
+// ~End of Player Implementation
+
 // ~Begin of Render Implementation
 void Render_DrawMap();
 void Render_DrawPlayer();
 // ~End of Render Implementation
 
-// ~Begin of Player Implementation
-Camera2D Player_GenerateCamera();
-Entity Player_GeneratePlayer();
-void Player_ProcessMovement(Entity* player, float deltaTime);
-// ~End of Player Implementation
-
 // ~Helpers
+
+// ~Begin of Global Implementation
 inline static Entity* Global_GetPlayer()
 {
     return &globalVariables.entities[globalVariables.playerIndex];
 }
+// ~End of Global Implementation
