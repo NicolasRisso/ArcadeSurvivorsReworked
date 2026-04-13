@@ -170,7 +170,8 @@ Entity Player_GeneratePlayer()
     player.animatedSprite.frameTimer = 0.0f;
     player.animatedSprite.frameTime = 0.1f;
     player.animatedSprite.flipX = false;
-    player.radius = 20.0f;
+    player.scale = (Vector2){ 2.0f, 2.0f };
+    player.radius = 40.0f;
 
     return player;
 }
@@ -278,11 +279,11 @@ void Render_DrawPlayer()
         Rectangle dest = { 
             player->position.x, 
             player->position.y, 
-            frameWidth, 
-            (float)texture.height 
+            frameWidth * player->scale.x, 
+            (float)texture.height * player->scale.y 
         };
         
-        Vector2 origin = { frameWidth / 2.0f, (float)texture.height / 2.0f };
+        Vector2 origin = { (frameWidth * player->scale.x) / 2.0f, ((float)texture.height * player->scale.y) / 2.0f };
         
         DrawTexturePro(texture, source, dest, origin, 0, WHITE);
     }

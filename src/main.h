@@ -92,6 +92,7 @@ typedef struct Entity{
     bool bIsActive;
     Vector2 position;
     Vector2 velocity;
+    Vector2 scale;
     float radius;
     union
     {
