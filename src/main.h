@@ -9,6 +9,9 @@
 
 #define MAX_ENTITIES_AMOUNT 20000
 
+#define MAP_SIZE 10000
+#define MAP_HALF_SIZE 5000
+
 // ~Begin of Enums
 typedef enum EntityType : uint8_t {
     ENTITY_TYPE_UNDEFINED = 0,
@@ -45,9 +48,30 @@ typedef enum AssetMusicType : uint8_t {
     ASSET_MUSIC_TYPE_COMBAT = 0,
     ASSET_MUSIC_TYPE_COUNT = 1
 } AssetMusicType;
+
+typedef enum VisualType : uint8_t {
+    VISUAL_TYPE_NONE = 0, // For entities that have no sprite
+    VISUAL_TYPE_SPRITE = 1, // For entities with sprites
+    VISUAL_TYPE_ANIMATED_SPRITE = 2 // For entities with animated sprites
+} VisualType;
 // ~End of Enums
 
 // ~Begin of Structs
+
+typedef struct SpriteData {
+    uint8_t spriteID;
+    bool flipX;
+} SpriteData;
+
+typedef struct AnimatedSpriteData {
+    uint8_t spriteID;
+    uint8_t frameCount;
+    uint8_t currentFrame;
+    float frameTimer;
+    float frameTime;
+    bool flipX;
+} AnimatedSpriteData;
+
 typedef struct Character{
     float health;
     float maxHealth;
@@ -63,17 +87,24 @@ typedef struct Projectile{
 
 typedef struct Entity{
     EntityType type;
-
     uint16_t id;
+    uint8_t spriteID;
     bool bIsActive;
     Vector2 position;
     Vector2 velocity;
     float radius;
-
     union
     {
         Character character;
         Projectile projectile;
+    };
+
+    // Sprite Data
+    VisualType visualType;
+    union
+    {
+        SpriteData sprite;
+        AnimatedSpriteData animatedSprite;
     };
 } Entity;
 
@@ -125,11 +156,24 @@ void Core_CloseGame();
 int Core_IsGameReadyToClose();
 // ~End of Core Implementation
 
+// ~Begin of Assets Implementation
+void Assets_Init();
+void Assets_Unload();
+Texture2D Assets_GetSprite(AssetSpriteType spriteID);
+Sound Assets_GetSound(AssetSoundType soundID);
+Music Assets_GetMusic(AssetMusicType musicID);
+// ~End of Assets Implementation
+
+//~ Begin of Collision Implementation
+void Collision_MapBorder(Entity* entity);
+//~ End of Collision Implementation
+
 // ~Begin of Player Implementation
 Camera2D Player_GenerateCamera();
 Entity Player_GeneratePlayer();
 PlayerStats Player_GeneratePlayerStats();
 void Player_ProcessMovement(Entity* player, float deltaTime);
+void Player_AnimateMovement(Entity* player, float deltaTime);
 // ~End of Player Implementation
 
 // ~Begin of Render Implementation
