@@ -1,54 +1,50 @@
 @echo off
+setlocal EnableDelayedExpansion
+
+:: Project Configuration
 set PROJECT_NAME=ArcadeSurvival
 set OUT_DIR=bin
-set COMPILER=gcc
+set SRC_DIR=src
 
+:: Ensure output directory exists
 if not exist %OUT_DIR% mkdir %OUT_DIR%
-
-:: Collect all .c files in the current folder (main.c) and the src directory recursively
-setlocal EnableDelayedExpansion
-set "SOURCE_FILES="
-for /R src %%f in (*.c) do (
-    set "SOURCE_FILES=!SOURCE_FILES! "%%f""
-)
 
 echo Building %PROJECT_NAME%...
 
-:: Check for local Raylib binaries
-set "RAYLIB_INCLUDES=-Iraylib/include"
-set "RAYLIB_LIBS=-Lraylib/lib -lraylib"
+:: Compilation Flags
+set "INCLUDES=-Iraylib/include -I%SRC_DIR%"
+set "LIBS=-Lraylib/lib -lraylib -lgdi32 -lwinmm"
 
-if not exist raylib\lib\libraylib.a (
-    if not exist raylib\lib\raylib.lib (
-        echo [INFO] Local Raylib binaries not found at raylib/lib.
-        echo [INFO] Attempting to use system-installed Raylib...
-        set "RAYLIB_INCLUDES="
-        set "RAYLIB_LIBS=-lraylib"
-    )
+:: Compile src/main.c (and others if found in src)
+set "SOURCES="
+for /R %SRC_DIR% %%f in (*.c) do (
+    set "SOURCES=!SOURCES! "%%f""
 )
 
-%COMPILER% !SOURCE_FILES! -o %OUT_DIR%/%PROJECT_NAME%.exe ^
-    -Isrc %RAYLIB_INCLUDES% ^
-    %RAYLIB_LIBS% ^
-    -lgdi32 ^
-    -lwinmm
+gcc !SOURCES! -o %OUT_DIR%\%PROJECT_NAME%.exe %INCLUDES% %LIBS%
 
 if %ERRORLEVEL% equ 0 (
-    echo Build successful! Binary is in %OUT_DIR%
+    echo.
+    echo [SUCCESS] Build completed: %OUT_DIR%\%PROJECT_NAME%.exe
+    
+    :: Copy required Raylib DLL if it exists
     if exist raylib\lib\raylib.dll (
-        copy raylib\lib\raylib.dll %OUT_DIR%\ >nul
-        echo Copied raylib.dll to %OUT_DIR%
+        copy /Y raylib\lib\raylib.dll %OUT_DIR%\ >nul
+        echo [INFO] Copied raylib.dll to %OUT_DIR%
     ) else if exist raylib\raylib.dll (
-        copy raylib\raylib.dll %OUT_DIR%\ >nul
-        echo Copied raylib.dll to %OUT_DIR%
+        copy /Y raylib\raylib.dll %OUT_DIR%\ >nul
+        echo [INFO] Copied raylib.dll to %OUT_DIR%
     )
     
-    :: Copy assets directory
+    :: Sync Assets
     if exist assets (
+        echo [INFO] Syncing assets...
         xcopy /E /I /Y assets %OUT_DIR%\assets >nul
-        echo Copied assets to %OUT_DIR%\assets
     )
 ) else (
-    echo Build failed!
+    echo.
+    echo [ERROR] Build failed! Check the errors above.
 )
+
+echo.
 pause
