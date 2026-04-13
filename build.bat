@@ -21,7 +21,7 @@ for /R %SRC_DIR% %%f in (*.c) do (
     set "SOURCES=!SOURCES! "%%f""
 )
 
-gcc !SOURCES! -o %OUT_DIR%\%PROJECT_NAME%.exe %INCLUDES% %LIBS%
+gcc -std=c23 !SOURCES! -o %OUT_DIR%\%PROJECT_NAME%.exe %INCLUDES% %LIBS%
 
 if %ERRORLEVEL% equ 0 (
     echo.
