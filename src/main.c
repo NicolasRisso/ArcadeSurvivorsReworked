@@ -56,13 +56,7 @@ void Core_InitGame()
     globalVariables.playerStats = Player_GeneratePlayerStats();
     globalVariables.camera = Player_GenerateCamera();
 
-    // Spawn some test enemies
-    for (int i = 0; i < 4; i++)
-    {
-        Entity enemy = Enemy_GenerateEnemy((EnemyType)i);
-        enemy.position = (Vector2){ 400.0f + i * 200.0f, 400.0f };
-        Global_AddEntity(&enemy);
-    }
+    globalVariables.spawnerData = Spawner_GenerateSpawnerData();
     
     SetTargetFPS(240);
     DisableCursor();
@@ -75,6 +69,7 @@ void Core_UpdateGame(float deltaTime)
 {
     Player_ProcessMovement(Global_GetPlayer(), deltaTime);
     Enemy_ProcessAllMovement(deltaTime);
+    Spawner_ProcessSpawnLogic(deltaTime);
 }
 void Core_RenderGraphics()
 {
@@ -227,6 +222,28 @@ void Enemy_ProcessAllMovement(float deltaTime)
 
         current->position.x += current->velocity.x * deltaTime;
         current->position.y += current->velocity.y * deltaTime;
+
+        // Separation Pass (Avoidance)
+        Vector2 separation = { 0, 0 };
+        for (int j = 0; j < globalVariables.lastEntityIndex; j++)
+        {
+            if (i == j) continue;
+            Entity* other = &globalVariables.entities[j];
+            if (!other->bIsActive || other->type != ENTITY_TYPE_ENEMY) continue;
+
+            float dist = Vector2Distance(current->position, other->position);
+            float minDist = current->radius + other->radius;
+            if (dist < minDist && dist > 0)
+            {
+                Vector2 push = Vector2Subtract(current->position, other->position);
+                push = Vector2Normalize(push);
+                float overlap = minDist - dist;
+                separation.x += push.x * overlap * 1.5f;
+                separation.y += push.y * overlap * 1.5f;
+            }
+        }
+        current->position.x += separation.x * deltaTime * 10.0f;
+        current->position.y += separation.y * deltaTime * 10.0f;
     }
 }
 //~ End of Enemy Implementation
@@ -469,3 +486,182 @@ void Render_DrawAllEntitiesSorted()
     }
 }
 // ~End of Render Implementation
+
+// ~Begin of Spawner Implementation
+SpawnerData Spawner_GenerateSpawnerData()
+{
+    SpawnerData data = { 0 };
+    data.delayBetweenSpawns = 1.5f;
+    data.spawnTimer = data.delayBetweenSpawns;
+
+    // Default Definitions
+    // 0: Normal Bat Single Spawn (Common)
+    data.spawnsDefinitions[0] = (SpawnDefinition){
+        .enemyType = ENEMY_TYPE_NORMAL,
+        .spawnType = SPAWN_TYPE_SINGLE,
+        .amountToSpawnRange = { 1, 1 },
+        .distanceToSpawnRange = { 800, 1000 },
+        .chanceToSpawn = 100, // Weighted value
+        .Difficulty = 1.0f
+    };
+
+    // 1: Fast Bat Cluster (Medium)
+    data.spawnsDefinitions[1] = (SpawnDefinition){
+        .enemyType = ENEMY_TYPE_FAST,
+        .spawnType = SPAWN_TYPE_CLUSTER,
+        .amountToSpawnRange = { 5, 8 },
+        .distanceToSpawnRange = { 900, 1100 },
+        .chanceToSpawn = 30,
+        .Difficulty = 2.0f
+    };
+
+    // 2: Normal Bat Around (Medium)
+    data.spawnsDefinitions[2] = (SpawnDefinition){
+        .enemyType = ENEMY_TYPE_NORMAL,
+        .spawnType = SPAWN_TYPE_AROUND,
+        .amountToSpawnRange = { 10, 15 },
+        .distanceToSpawnRange = { 1000, 1200 },
+        .chanceToSpawn = 20,
+        .Difficulty = 3.0f
+    };
+
+    // 3: Tank Bat Single (Rare)
+    data.spawnsDefinitions[3] = (SpawnDefinition){
+        .enemyType = ENEMY_TYPE_TANK,
+        .spawnType = SPAWN_TYPE_SINGLE,
+        .amountToSpawnRange = { 1, 1 },
+        .distanceToSpawnRange = { 1100, 1300 },
+        .chanceToSpawn = 10,
+        .Difficulty = 5.0f
+    };
+
+    // 4: Fast Bat Line (Medium)
+    data.spawnsDefinitions[4] = (SpawnDefinition){
+        .enemyType = ENEMY_TYPE_FAST,
+        .spawnType = SPAWN_TYPE_LINE,
+        .amountToSpawnRange = { 5, 10 },
+        .distanceToSpawnRange = { 900, 1100 },
+        .chanceToSpawn = 25,
+        .Difficulty = 4.0f
+    };
+
+    // 5: Normal Bat Cluster (Common)
+    data.spawnsDefinitions[1] = (SpawnDefinition){
+        .enemyType = ENEMY_TYPE_NORMAL,
+        .spawnType = SPAWN_TYPE_CLUSTER,
+        .amountToSpawnRange = { 11, 18 },
+        .distanceToSpawnRange = { 900, 1100 },
+        .chanceToSpawn = 35,
+        .Difficulty = 2.0f
+    };
+
+    // 6: Normal Bat Line (Common)
+    data.spawnsDefinitions[1] = (SpawnDefinition){
+        .enemyType = ENEMY_TYPE_NORMAL,
+        .spawnType = SPAWN_TYPE_LINE,
+        .amountToSpawnRange = { 12, 19 },
+        .distanceToSpawnRange = { 900, 1100 },
+        .chanceToSpawn = 35,
+        .Difficulty = 2.0f
+    };
+
+    return data;
+}
+
+void Spawner_ProcessSpawnLogic(float deltaTime)
+{
+    globalVariables.spawnerData.spawnTimer -= deltaTime;
+    if (globalVariables.spawnerData.spawnTimer > 0) return;
+
+    // Reset Timer
+    globalVariables.spawnerData.spawnTimer = globalVariables.spawnerData.delayBetweenSpawns;
+
+    // Phase 1: Weighted Selection
+    int totalWeight = 0;
+    for (int i = 0; i < MAX_SPAWN_DEFINITION; i++) 
+        totalWeight += globalVariables.spawnerData.spawnsDefinitions[i].chanceToSpawn;
+
+    if (totalWeight <= 0) return;
+
+    int roll = GetRandomValue(0, totalWeight - 1);
+    int currentWeight = 0;
+    SpawnDefinition* selectedDef = &globalVariables.spawnerData.spawnsDefinitions[0];
+
+    for (int i = 0; i < MAX_SPAWN_DEFINITION; i++)
+    {
+        currentWeight += globalVariables.spawnerData.spawnsDefinitions[i].chanceToSpawn;
+        if (roll < currentWeight)
+        {
+            selectedDef = &globalVariables.spawnerData.spawnsDefinitions[i];
+            break;
+        }
+    }
+
+    // Phase 2: Execution
+    uint16_t amount = Helper_GetRandomUint16InRange(selectedDef->amountToSpawnRange);
+    float distance = Helper_GetRandomFloatInRange(selectedDef->distanceToSpawnRange);
+    Entity* player = Global_GetPlayer();
+
+    // Random Direction
+    float baseAngle = (float)GetRandomValue(0, 360) * (PI / 180.0f);
+    Vector2 spawnPos = {
+        player->position.x + cosf(baseAngle) * distance,
+        player->position.y + sinf(baseAngle) * distance
+    };
+
+    switch (selectedDef->spawnType)
+    {
+        case SPAWN_TYPE_SINGLE:
+        {
+            Entity enemy = Enemy_GenerateEnemy(selectedDef->enemyType);
+            enemy.position = spawnPos;
+            Global_AddEntity(&enemy);
+        }
+        break;
+
+        case SPAWN_TYPE_CLUSTER:
+        {
+            for (int i = 0; i < amount; i++)
+            {
+                Entity enemy = Enemy_GenerateEnemy(selectedDef->enemyType);
+                // Spread slightly
+                enemy.position.x = spawnPos.x + (float)GetRandomValue(-100, 100);
+                enemy.position.y = spawnPos.y + (float)GetRandomValue(-100, 100);
+                Global_AddEntity(&enemy);
+            }
+        }
+        break;
+
+        case SPAWN_TYPE_LINE:
+        {
+            Vector2 toSpawn = Vector2Subtract(spawnPos, player->position);
+            Vector2 lineDir = { -toSpawn.y, toSpawn.x }; // Perpendicular to player vector
+            lineDir = Vector2Normalize(lineDir);
+
+            for (int i = 0; i < amount; i++)
+            {
+                Entity enemy = Enemy_GenerateEnemy(selectedDef->enemyType);
+                // Center the line on spawnPos
+                float offset = (i - (amount / 2.0f)) * 70.0f;
+                enemy.position.x = spawnPos.x + lineDir.x * offset;
+                enemy.position.y = spawnPos.y + lineDir.y * offset;
+                Global_AddEntity(&enemy);
+            }
+        }
+        break;
+
+        case SPAWN_TYPE_AROUND:
+        {
+            for (int i = 0; i < amount; i++)
+            {
+                float angle = (float)i * (2.0f * PI / (float)amount);
+                Entity enemy = Enemy_GenerateEnemy(selectedDef->enemyType);
+                enemy.position.x = player->position.x + cosf(angle) * distance;
+                enemy.position.y = player->position.y + sinf(angle) * distance;
+                Global_AddEntity(&enemy);
+            }
+        }
+        break;
+    }
+}
+// ~End of Spawner Implementation

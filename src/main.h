@@ -9,8 +9,22 @@
 
 #define MAX_ENTITIES_AMOUNT 20000
 
+#define MAX_SPAWN_DEFINITION 7
+
 #define MAP_SIZE 10000
 #define MAP_HALF_SIZE 5000
+
+//~ Begin of Utility Structs
+typedef struct FloatRange {
+    float min;
+    float max;
+} FloatRange;
+
+typedef struct Uint16Range {
+    uint16_t min;
+    uint16_t max;
+} Uint16Range;
+//~ End of Utility Structs
 
 // ~Begin of Enums
 typedef enum EntityType : uint8_t {
@@ -62,6 +76,13 @@ typedef enum VisualType : uint8_t {
     VISUAL_TYPE_SPRITE = 1, // For entities with sprites
     VISUAL_TYPE_ANIMATED_SPRITE = 2 // For entities with animated sprites
 } VisualType;
+
+typedef enum SpawnType : uint8_t {
+    SPAWN_TYPE_SINGLE = 0,
+    SPAWN_TYPE_CLUSTER = 1,
+    SPAWN_TYPE_LINE = 2,
+    SPAWN_TYPE_AROUND = 3
+} SpawnType;
 // ~End of Enums
 
 // ~Begin of Structs
@@ -132,6 +153,21 @@ typedef struct Assets{
     Music musics[ASSET_MUSIC_TYPE_COUNT];
 } Assets;
 
+typedef struct SpawnDefinition{
+    EnemyType enemyType;
+    SpawnType spawnType;
+    Uint16Range amountToSpawnRange;
+    FloatRange distanceToSpawnRange;
+    uint16_t chanceToSpawn;
+    float Difficulty;
+} SpawnDefinition;
+
+typedef struct SpawnerData{
+    float delayBetweenSpawns;
+    float spawnTimer;
+    SpawnDefinition spawnsDefinitions[MAX_SPAWN_DEFINITION];
+} SpawnerData;
+
 typedef struct PlayerStats{
     float currentXP;
     float nextLevelXP;
@@ -155,6 +191,8 @@ typedef struct GlobalVariables{
     uint16_t lastEntityIndex;
 
     uint16_t playerIndex;
+
+    SpawnerData spawnerData;
 } GlobalVariables;
 // ~End of Structs
 
@@ -205,6 +243,11 @@ void Render_DrawAllEntitiesSorted();
 void Render_DrawEntity(Entity* entity);
 // ~End of Render Implementation
 
+// ~Begin of Spawner Implementation
+SpawnerData Spawner_GenerateSpawnerData();
+void Spawner_ProcessSpawnLogic(float deltaTime);
+// ~End of Spawner Implementation
+
 // ~Helpers
 
 // ~Begin of Global Implementation
@@ -233,3 +276,14 @@ inline static bool Global_DestroyEntity(uint16_t entityIndex)
     return true;
 }
 // ~End of Global Implementation
+
+// ~Begin of Helpers Implementation
+inline static float Helper_GetRandomFloatInRange(FloatRange range)
+{
+    return range.min + (float)GetRandomValue(0, 10000) / 10000.0f * (range.max - range.min);
+}
+inline static uint16_t Helper_GetRandomUint16InRange(Uint16Range range)
+{
+    return (uint16_t)GetRandomValue(range.min, range.max);
+}
+// ~End of Helpers Implementation
