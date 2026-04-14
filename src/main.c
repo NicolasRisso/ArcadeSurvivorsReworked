@@ -47,10 +47,22 @@ void Core_InitGame()
     Assets_Init();
     
     // Init Global Variables
+    globalVariables.lastEntityIndex = 0;
     globalVariables.playerIndex = 0;
-    globalVariables.entities[0] = Player_GeneratePlayer();
+    
+    Entity player = Player_GeneratePlayer();
+    Global_AddEntity(&player);
+    
     globalVariables.playerStats = Player_GeneratePlayerStats();
     globalVariables.camera = Player_GenerateCamera();
+
+    // Spawn some test enemies
+    for (int i = 0; i < 4; i++)
+    {
+        Entity enemy = Enemy_GenerateEnemy((EnemyType)i);
+        enemy.position = (Vector2){ 400.0f + i * 200.0f, 400.0f };
+        Global_AddEntity(&enemy);
+    }
     
     SetTargetFPS(240);
     DisableCursor();
@@ -62,6 +74,7 @@ void Core_ProcessInput()
 void Core_UpdateGame(float deltaTime)
 {
     Player_ProcessMovement(Global_GetPlayer(), deltaTime);
+    Enemy_ProcessAllMovement(deltaTime);
 }
 void Core_RenderGraphics()
 {
@@ -72,6 +85,7 @@ void Core_RenderGraphics()
 
     Render_DrawMap();
     Render_DrawPlayer();
+    Render_DrawEnemies();
 
     EndMode2D();
     EndDrawing();
@@ -139,6 +153,84 @@ void Collision_MapBorder(Entity* entity)
     if (entity->position.y > max) entity->position.y = max;
 }
 //~ End of Collision Implementation
+
+//~ Begin of Enemy Implementation
+Entity Enemy_GenerateEnemy(EnemyType enemyType)
+{
+    Entity enemy = { 0 };
+    enemy.type = ENTITY_TYPE_ENEMY;
+    enemy.bIsActive = true;
+    enemy.position = (Vector2){ 0, 0 }; // Should be set by spawner
+    enemy.velocity = (Vector2){ 0, 0 };
+    enemy.scale = (Vector2){ 2.0f, 2.0f };
+    enemy.radius = 30.0f;
+    
+    enemy.visualType = VISUAL_TYPE_SPRITE;
+    enemy.sprite.spriteID = ASSET_SPRITE_TYPE_BAT;
+    enemy.sprite.flipX = false;
+
+    enemy.enemyCharacter.enemyType = enemyType;
+
+    switch (enemyType)
+    {
+        case ENEMY_TYPE_NORMAL:
+            enemy.enemyCharacter.health = 50.0f;
+            enemy.enemyCharacter.speed = 150.0f;
+            enemy.enemyCharacter.xpDropAmount = 10.0f;
+            enemy.scale = (Vector2){ 0.75f, 0.75f };
+            break;
+        case ENEMY_TYPE_FAST:
+            enemy.enemyCharacter.health = 30.0f;
+            enemy.enemyCharacter.speed = 225.0f;
+            enemy.enemyCharacter.xpDropAmount = 15.0f;
+            enemy.scale = (Vector2){ 0.5f, 0.5f };
+            break;
+        case ENEMY_TYPE_TANK:
+            enemy.enemyCharacter.health = 200.0f;
+            enemy.enemyCharacter.speed = 80.0f;
+            enemy.enemyCharacter.xpDropAmount = 50.0f;
+            enemy.scale = (Vector2){ 1.5f, 1.5f };
+            enemy.radius = 60.0f;
+            break;
+        case ENEMY_TYPE_BOSS:
+            enemy.enemyCharacter.health = 1000.0f;
+            enemy.enemyCharacter.speed = 120.0f;
+            enemy.enemyCharacter.xpDropAmount = 500.0f;
+            enemy.scale = (Vector2){ 3.0f, 3.0f };
+            enemy.radius = 120.0f;
+            break;
+    }
+
+    return enemy;
+}
+
+void Enemy_ProcessAllMovement(float deltaTime)
+{
+    Entity* player = Global_GetPlayer();
+    
+    for (int i = 0; i < globalVariables.lastEntityIndex; i++)
+    {
+        Entity* current = &globalVariables.entities[i];
+        if (!current->bIsActive || current->type != ENTITY_TYPE_ENEMY) continue;
+
+        // Simple AI: Move towards player
+        Vector2 direction = Vector2Subtract(player->position, current->position);
+        if (Vector2Length(direction) > 0)
+        {
+            direction = Vector2Normalize(direction);
+            current->velocity.x = direction.x * current->enemyCharacter.speed;
+            current->velocity.y = direction.y * current->enemyCharacter.speed;
+            
+            // Flip sprite based on movement direction
+            if (current->velocity.x > 0) current->sprite.flipX = false;
+            else if (current->velocity.x < 0) current->sprite.flipX = true;
+        }
+
+        current->position.x += current->velocity.x * deltaTime;
+        current->position.y += current->velocity.y * deltaTime;
+    }
+}
+//~ End of Enemy Implementation
 
 // ~Begin of Player Implementation
 Camera2D Player_GenerateCamera()
@@ -286,6 +378,44 @@ void Render_DrawPlayer()
         Vector2 origin = { (frameWidth * player->scale.x) / 2.0f, ((float)texture.height * player->scale.y) / 2.0f };
         
         DrawTexturePro(texture, source, dest, origin, 0, WHITE);
+    }
+}
+void Render_DrawEnemies()
+{
+    for (int i = 0; i < globalVariables.lastEntityIndex; i++)
+    {
+        Entity* enemy = &globalVariables.entities[i];
+        if (!enemy->bIsActive || enemy->type != ENTITY_TYPE_ENEMY) continue;
+
+        Texture2D texture = Assets_GetSprite(enemy->sprite.spriteID);
+        
+        // Color based on EnemyType
+        Color tint = WHITE;
+        switch (enemy->enemyCharacter.enemyType)
+        {
+            case ENEMY_TYPE_NORMAL: tint = WHITE; break;
+            case ENEMY_TYPE_FAST:   tint = ORANGE; break;
+            case ENEMY_TYPE_TANK:   tint = PURPLE; break;
+            case ENEMY_TYPE_BOSS:   tint = RED; break;
+        }
+
+        Rectangle source = { 
+            0, 
+            0, 
+            enemy->sprite.flipX ? -(float)texture.width : (float)texture.width, 
+            (float)texture.height 
+        };
+        
+        Rectangle dest = { 
+            enemy->position.x, 
+            enemy->position.y, 
+            (float)texture.width * enemy->scale.x, 
+            (float)texture.height * enemy->scale.y 
+        };
+        
+        Vector2 origin = { ((float)texture.width * enemy->scale.x) / 2.0f, ((float)texture.height * enemy->scale.y) / 2.0f };
+        
+        DrawTexturePro(texture, source, dest, origin, 0, tint);
     }
 }
 // ~End of Render Implementation

@@ -18,6 +18,7 @@ typedef enum EntityType : uint8_t {
     ENTITY_TYPE_CHARACTER = 1,
     ENTITY_TYPE_PLAYER = 2,
     ENTITY_TYPE_PROJECTILE = 3,
+    ENTITY_TYPE_ENEMY = 4
 } EntityType;
 
 typedef enum ProjectileType : uint8_t {
@@ -27,6 +28,13 @@ typedef enum ProjectileType : uint8_t {
     PROJECTILE_TYPE_BOMB = 3,
     PROJECTILE_TYPE_NATURE_SPIKE = 4,
 } ProjectileType;
+
+typedef enum EnemyType : uint8_t {
+    ENEMY_TYPE_NORMAL = 0,
+    ENEMY_TYPE_FAST = 1,
+    ENEMY_TYPE_TANK = 2,
+    ENEMY_TYPE_BOSS = 3
+} EnemyType;
 
 typedef enum AssetSpriteType : uint8_t {
     ASSET_SPRITE_TYPE_PLAYER = 0,
@@ -78,6 +86,14 @@ typedef struct Character{
     float speed;
 } Character;
 
+typedef struct EnemyCharacter{
+    float health;
+    float speed;
+
+    EnemyType enemyType;
+    float xpDropAmount;
+} EnemyCharacter;
+
 typedef struct Projectile{
     float damage;
     float lifeTime;
@@ -97,6 +113,7 @@ typedef struct Entity{
     union
     {
         Character character;
+        EnemyCharacter enemyCharacter;
         Projectile projectile;
     };
 
@@ -135,7 +152,7 @@ typedef struct GlobalVariables{
     PlayerStats playerStats;
 
     Entity entities[MAX_ENTITIES_AMOUNT];
-    uint16_t entityCount;
+    uint16_t lastEntityIndex;
 
     uint16_t playerIndex;
 } GlobalVariables;
@@ -169,6 +186,11 @@ Music Assets_GetMusic(AssetMusicType musicID);
 void Collision_MapBorder(Entity* entity);
 //~ End of Collision Implementation
 
+//~ Begin of Enemy Implementation
+Entity Enemy_GenerateEnemy(EnemyType enemyType);
+void Enemy_ProcessAllMovement(float deltaTime);
+//~ End of Enemy Implementation
+
 // ~Begin of Player Implementation
 Camera2D Player_GenerateCamera();
 Entity Player_GeneratePlayer();
@@ -180,6 +202,7 @@ void Player_AnimateMovement(Entity* player, float deltaTime);
 // ~Begin of Render Implementation
 void Render_DrawMap();
 void Render_DrawPlayer();
+void Render_DrawEnemies();
 // ~End of Render Implementation
 
 // ~Helpers
@@ -188,5 +211,25 @@ void Render_DrawPlayer();
 inline static Entity* Global_GetPlayer()
 {
     return &globalVariables.entities[globalVariables.playerIndex];
+}
+inline static bool Global_AddEntity(Entity* entity)
+{
+    if (!entity) return false;
+    if (globalVariables.lastEntityIndex >= MAX_ENTITIES_AMOUNT) return false;
+
+    globalVariables.entities[globalVariables.lastEntityIndex] = *entity;
+    globalVariables.lastEntityIndex++;
+
+    return true;
+}
+inline static bool Global_DestroyEntity(uint16_t entityIndex)
+{
+    if (entityIndex < 0 || entityIndex >= globalVariables.lastEntityIndex || entityIndex >= MAX_ENTITIES_AMOUNT) return false;
+
+    globalVariables.entities[entityIndex] = globalVariables.entities[globalVariables.lastEntityIndex];
+    globalVariables.entities[globalVariables.lastEntityIndex].bIsActive = false;
+    globalVariables.lastEntityIndex--;
+
+    return true;
 }
 // ~End of Global Implementation
