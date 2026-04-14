@@ -171,6 +171,7 @@ typedef struct SpawnerData{
 typedef struct PlayerStats{
     float currentXP;
     float nextLevelXP;
+    uint16_t level;
 
     float healthMultiplier;
     float damageMultiplier;
@@ -193,6 +194,7 @@ typedef struct GlobalVariables{
     uint16_t playerIndex;
 
     SpawnerData spawnerData;
+    float gameTimer;
 } GlobalVariables;
 // ~End of Structs
 
@@ -229,6 +231,12 @@ Entity Enemy_GenerateEnemy(EnemyType enemyType);
 void Enemy_ProcessAllMovement(float deltaTime);
 //~ End of Enemy Implementation
 
+//~ Begin of HUD Implementation
+void HUD_Init();
+void HUD_UpdateData();
+void HUD_Draw();
+//~ End of HUD Implementation
+
 // ~Begin of Player Implementation
 Camera2D Player_GenerateCamera();
 Entity Player_GeneratePlayer();
@@ -248,9 +256,8 @@ SpawnerData Spawner_GenerateSpawnerData();
 void Spawner_ProcessSpawnLogic(float deltaTime);
 // ~End of Spawner Implementation
 
-// ~Helpers
-
-// ~Begin of Global Implementation
+//~ Begin of Global Implementation
+void Global_UpdateGameTimer(float deltaTime);
 inline static Entity* Global_GetPlayer()
 {
     return &globalVariables.entities[globalVariables.playerIndex];
