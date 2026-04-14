@@ -84,8 +84,7 @@ void Core_RenderGraphics()
     BeginMode2D(globalVariables.camera);
 
     Render_DrawMap();
-    Render_DrawPlayer();
-    Render_DrawEnemies();
+    Render_DrawAllEntitiesSorted();
 
     EndMode2D();
     EndDrawing();
@@ -353,69 +352,120 @@ void Render_DrawMap()
     // Draw Map Borders (Red boundary)
     DrawRectangleLinesEx((Rectangle){ -MAP_HALF_SIZE, -MAP_HALF_SIZE, MAP_SIZE, MAP_SIZE }, 10.0f, RED);
 }
-void Render_DrawPlayer()
+void Render_DrawEntity(Entity* entity)
 {
-    Entity* player = Global_GetPlayer();
-    if (player->bIsActive)
-    {
-        Texture2D texture = Assets_GetSprite(player->animatedSprite.spriteID);
-        float frameWidth = (float)texture.width / (player->animatedSprite.frameCount + 1);
-        
-        Rectangle source = { 
-            player->animatedSprite.currentFrame * frameWidth, 
-            0, 
-            player->animatedSprite.flipX ? -frameWidth : frameWidth, 
-            (float)texture.height 
-        };
-        
-        Rectangle dest = { 
-            player->position.x, 
-            player->position.y, 
-            frameWidth * player->scale.x, 
-            (float)texture.height * player->scale.y 
-        };
-        
-        Vector2 origin = { (frameWidth * player->scale.x) / 2.0f, ((float)texture.height * player->scale.y) / 2.0f };
-        
-        DrawTexturePro(texture, source, dest, origin, 0, WHITE);
-    }
-}
-void Render_DrawEnemies()
-{
-    for (int i = 0; i < globalVariables.lastEntityIndex; i++)
-    {
-        Entity* enemy = &globalVariables.entities[i];
-        if (!enemy->bIsActive || enemy->type != ENTITY_TYPE_ENEMY) continue;
+    if (!entity || !entity->bIsActive) return;
 
-        Texture2D texture = Assets_GetSprite(enemy->sprite.spriteID);
-        
-        // Color based on EnemyType
-        Color tint = WHITE;
-        switch (enemy->enemyCharacter.enemyType)
+    Texture2D texture = Assets_GetSprite(entity->visualType == VISUAL_TYPE_ANIMATED_SPRITE ? entity->animatedSprite.spriteID : entity->sprite.spriteID);
+    
+    // Choose color tint
+    Color tint = WHITE;
+    if (entity->type == ENTITY_TYPE_ENEMY)
+    {
+        switch (entity->enemyCharacter.enemyType)
         {
             case ENEMY_TYPE_NORMAL: tint = WHITE; break;
             case ENEMY_TYPE_FAST:   tint = ORANGE; break;
             case ENEMY_TYPE_TANK:   tint = PURPLE; break;
             case ENEMY_TYPE_BOSS:   tint = RED; break;
         }
+    }
 
-        Rectangle source = { 
+    Rectangle source = { 0, 0, 0, 0 };
+    Vector2 origin = { 0, 0 };
+
+    if (entity->visualType == VISUAL_TYPE_ANIMATED_SPRITE)
+    {
+        float frameWidth = (float)texture.width / (entity->animatedSprite.frameCount + 1);
+        source = (Rectangle){ 
+            entity->animatedSprite.currentFrame * frameWidth, 
             0, 
-            0, 
-            enemy->sprite.flipX ? -(float)texture.width : (float)texture.width, 
+            entity->animatedSprite.flipX ? -frameWidth : frameWidth, 
             (float)texture.height 
         };
-        
-        Rectangle dest = { 
-            enemy->position.x, 
-            enemy->position.y, 
-            (float)texture.width * enemy->scale.x, 
-            (float)texture.height * enemy->scale.y 
+        origin = (Vector2){ (frameWidth * entity->scale.x) / 2.0f, (float)texture.height * entity->scale.y };
+    }
+    else
+    {
+        source = (Rectangle){ 
+            0, 
+            0, 
+            entity->sprite.flipX ? -(float)texture.width : (float)texture.width, 
+            (float)texture.height 
         };
+        origin = (Vector2){ ((float)texture.width * entity->scale.x) / 2.0f, (float)texture.height * entity->scale.y };
+    }
+
+    Rectangle dest = { 
+        entity->position.x, 
+        entity->position.y, 
+        (source.width < 0 ? -source.width : source.width) * entity->scale.x, 
+        (float)texture.height * entity->scale.y 
+    };
+
+    DrawTexturePro(texture, source, dest, origin, 0, tint);
+}
+
+#define BUCKET_COUNT 500
+#define MAP_HEIGHT 10000.0f
+#define MAP_Y_MIN -5000.0f
+
+void Render_DrawAllEntitiesSorted()
+{
+    static int bucketCounts[BUCKET_COUNT];
+    static int bucketOffsets[BUCKET_COUNT];
+    static uint16_t sortedIndices[MAX_ENTITIES_AMOUNT];
+
+    // Clear bucket counts
+    for (int i = 0; i < BUCKET_COUNT; i++) bucketCounts[i] = 0;
+
+    // Pass 1: Count entities per bucket
+    for (int i = 0; i < globalVariables.lastEntityIndex; i++)
+    {
+        if (!globalVariables.entities[i].bIsActive) continue;
         
-        Vector2 origin = { ((float)texture.width * enemy->scale.x) / 2.0f, ((float)texture.height * enemy->scale.y) / 2.0f };
+        float y = globalVariables.entities[i].position.y;
+        int bucket = (int)((y - MAP_Y_MIN) / (MAP_HEIGHT / BUCKET_COUNT));
         
-        DrawTexturePro(texture, source, dest, origin, 0, tint);
+        if (bucket < 0) bucket = 0;
+        if (bucket >= BUCKET_COUNT) bucket = BUCKET_COUNT - 1;
+        
+        bucketCounts[bucket]++;
+    }
+
+    // Prefix sum to get bucket start positions
+    bucketOffsets[0] = 0;
+    for (int i = 1; i < BUCKET_COUNT; i++)
+    {
+        bucketOffsets[i] = bucketOffsets[i - 1] + bucketCounts[i - 1];
+    }
+
+    // Pass 2: Fill sorted array
+    // We use a temporary copy of offsets to keep track of insertion points
+    static int currentOffsets[BUCKET_COUNT];
+    for (int i = 0; i < BUCKET_COUNT; i++) currentOffsets[i] = bucketOffsets[i];
+
+    for (int i = 0; i < globalVariables.lastEntityIndex; i++)
+    {
+        if (!globalVariables.entities[i].bIsActive) continue;
+
+        float y = globalVariables.entities[i].position.y;
+        int bucket = (int)((y - MAP_Y_MIN) / (MAP_HEIGHT / BUCKET_COUNT));
+        
+        if (bucket < 0) bucket = 0;
+        if (bucket >= BUCKET_COUNT) bucket = BUCKET_COUNT - 1;
+
+        sortedIndices[currentOffsets[bucket]] = i;
+        currentOffsets[bucket]++;
+    }
+
+    // Pass 3: Draw in order
+    int totalActive = 0;
+    for (int i = 0; i < BUCKET_COUNT; i++) totalActive += bucketCounts[i];
+
+    for (int i = 0; i < totalActive; i++)
+    {
+        Render_DrawEntity(&globalVariables.entities[sortedIndices[i]]);
     }
 }
 // ~End of Render Implementation

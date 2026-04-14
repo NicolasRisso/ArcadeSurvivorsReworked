@@ -201,8 +201,8 @@ void Player_AnimateMovement(Entity* player, float deltaTime);
 
 // ~Begin of Render Implementation
 void Render_DrawMap();
-void Render_DrawPlayer();
-void Render_DrawEnemies();
+void Render_DrawAllEntitiesSorted();
+void Render_DrawEntity(Entity* entity);
 // ~End of Render Implementation
 
 // ~Helpers
