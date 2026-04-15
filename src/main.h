@@ -133,6 +133,8 @@ typedef struct Character{
     float health;
     float maxHealth;
     float speed;
+    float flashTimer;
+    float invulnerableTimer;
 } Character;
 
 typedef struct EnemyCharacter{
@@ -141,6 +143,7 @@ typedef struct EnemyCharacter{
 
     EnemyType enemyType;
     float xpDropAmount;
+    float flashTimer;
 } EnemyCharacter;
 
 typedef struct Projectile{
@@ -196,6 +199,8 @@ typedef struct Assets{
     Texture2D sprites[ASSET_SPRITE_TYPE_COUNT];
     Sound sounds[ASSET_SOUND_TYPE_COUNT];
     Music musics[ASSET_MUSIC_TYPE_COUNT];
+    Shader flashShader;
+    int flashIntensityLoc;
 } Assets;
 
 typedef struct SpawnDefinition{

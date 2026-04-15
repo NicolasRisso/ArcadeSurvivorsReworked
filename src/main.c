@@ -101,6 +101,34 @@ int Core_IsGameReadyToClose()
 // ~End of Core Implementation
 
 // ~Begin of Assets Implementation
+const char* flashVS = 
+    "#version 330\n"
+    "in vec3 vertexPosition;\n"
+    "in vec2 vertexTexCoord;\n"
+    "in vec4 vertexColor;\n"
+    "out vec2 fragTexCoord;\n"
+    "out vec4 fragColor;\n"
+    "uniform mat4 mvp;\n"
+    "void main() {\n"
+    "    fragTexCoord = vertexTexCoord;\n"
+    "    fragColor = vertexColor;\n"
+    "    gl_Position = mvp * vec4(vertexPosition, 1.0);\n"
+    "}\n";
+
+const char* flashFS = 
+    "#version 330\n"
+    "in vec2 fragTexCoord;\n"
+    "in vec4 fragColor;\n"
+    "out vec4 finalColor;\n"
+    "uniform sampler2D texture0;\n"
+    "uniform vec4 colDiffuse;\n"
+    "uniform float flashIntensity;\n"
+    "void main() {\n"
+    "    vec4 texelColor = texture(texture0, fragTexCoord);\n"
+    "    vec4 baseColor = texelColor * colDiffuse * fragColor;\n"
+    "    finalColor = mix(baseColor, vec4(1.0, 1.0, 1.0, baseColor.a), flashIntensity);\n"
+    "}\n";
+
 void Assets_Init() {
     TraceLog(LOG_INFO, "ASSETS: Starting assets loading...");
 
@@ -128,6 +156,10 @@ void Assets_Init() {
     globalVariables.assets.musics[ASSET_MUSIC_TYPE_COMBAT] =
         LoadMusicStream("assets/musics/CombatMusic.ogg");
 
+    // Loading Shaders
+    globalVariables.assets.flashShader = LoadShaderFromMemory(flashVS, flashFS);
+    globalVariables.assets.flashIntensityLoc = GetShaderLocation(globalVariables.assets.flashShader, "flashIntensity");
+
     TraceLog(LOG_INFO, "ASSETS: All assets loaded successfully!");
 }
 
@@ -145,6 +177,8 @@ void Assets_Unload()
         UnloadSound(globalVariables.assets.sounds[i]);
     for (int i = 0; i < ASSET_MUSIC_TYPE_COUNT; i++)
         UnloadMusicStream(globalVariables.assets.musics[i]);
+
+    UnloadShader(globalVariables.assets.flashShader);
 
     TraceLog(LOG_INFO, "ASSETS: All assets unloaded.");
 }
@@ -262,6 +296,25 @@ void Enemy_ProcessAllMovement(float deltaTime)
         }
         current->position.x += separation.x * deltaTime * 10.0f;
         current->position.y += separation.y * deltaTime * 10.0f;
+
+        // Player Contact Damage
+        if (player->character.invulnerableTimer <= 0) {
+            float distToPlayer = Vector2Distance(current->position, player->position);
+            if (distToPlayer < (current->radius + player->radius)) {
+                float damageTable[] = { 10.0f, 5.0f, 25.0f, 50.0f }; // Normal, Fast, Tank, Boss
+                float damage = damageTable[current->enemyCharacter.enemyType];
+                
+                player->character.health -= damage;
+                player->character.invulnerableTimer = 0.5f;
+                player->character.flashTimer = 0.5f;
+                PlaySound(Assets_GetSound(ASSET_SOUND_TYPE_PLAYER_DAMAGE));
+            }
+        }
+
+        // Tick down enemy flash timer
+        if (current->enemyCharacter.flashTimer > 0) {
+            current->enemyCharacter.flashTimer -= deltaTime;
+        }
     }
 }
 //~ End of Enemy Implementation
@@ -405,6 +458,10 @@ void Player_ProcessMovement(Entity *player, float deltaTime)
     // Update Camera Target
     globalVariables.camera.target = Vector2Lerp(
         globalVariables.camera.target, player->position, 10.0f * deltaTime);
+
+    // Tick down timers
+    if (player->character.invulnerableTimer > 0) player->character.invulnerableTimer -= deltaTime;
+    if (player->character.flashTimer > 0) player->character.flashTimer -= deltaTime;
 
     Player_AnimateMovement(player, deltaTime);
 }
@@ -551,6 +608,7 @@ void Projectile_ProcessAllMovement(float deltaTime)
                         if (enemy->bIsActive && enemy->type == ENTITY_TYPE_ENEMY) {
                             if (CheckCollisionCircles(p->position, p->radius, enemy->position, enemy->radius)) {
                                 enemy->enemyCharacter.health -= p->projectile.damage;
+                                enemy->enemyCharacter.flashTimer = 0.1f;
                                 Popup_SpawnDamagePopup(enemy->position, p->projectile.damage);
                                 if (enemy->enemyCharacter.health <= 0) Global_DestroyEntity(j);
                             }
@@ -581,6 +639,7 @@ void Projectile_ProcessAllMovement(float deltaTime)
                     if (!alreadyHit) {
                         float dmgApplied = p->projectile.damage;
                         enemy->enemyCharacter.health -= dmgApplied;
+                        enemy->enemyCharacter.flashTimer = 0.1f;
                         Popup_SpawnDamagePopup(enemy->position, dmgApplied);
                         PlaySound(Assets_GetSound(ASSET_SOUND_TYPE_DAMAGE));
 
@@ -622,6 +681,7 @@ void Projectile_ProcessAllMovement(float deltaTime)
                 if (CheckCollisionCircles(p->position, p->radius, enemy->position, enemy->radius)) {
                     // Explosions no longer use hit tracking to save memory, they deal damage once per frame for very short duration
                     enemy->enemyCharacter.health -= p->projectile.damage;
+                    enemy->enemyCharacter.flashTimer = 0.1f;
                     Popup_SpawnDamagePopup(enemy->position, p->projectile.damage);
                     if (enemy->enemyCharacter.health <= 0) Global_DestroyEntity(j);
                 }
@@ -678,7 +738,9 @@ void Relic_ApplyEffects() {
     // Apply Health changes
     player->character.maxHealth = 100.0f * globalVariables.playerStats.healthMultiplier;
     if (player->character.maxHealth > oldMaxHealth) {
-        player->character.health += (player->character.maxHealth - oldMaxHealth);
+        if (player->character.invulnerableTimer <= 0) {
+            player->character.health += (player->character.maxHealth - oldMaxHealth);
+        }
     }
     
     // Apply speed changes
@@ -780,7 +842,23 @@ void Render_DrawEntity(Entity *entity)
                             entity->scale.x,
                         (float)texture.height * entity->scale.y};
 
+    // Damage Flash Logic
+    float flashIntensity = 0.0f;
+    if (entity->type == ENTITY_TYPE_ENEMY && entity->enemyCharacter.flashTimer > 0) {
+        flashIntensity = 1.0f;
+    } else if (entity->type == ENTITY_TYPE_PLAYER && entity->character.flashTimer > 0) {
+        // Flash every 0.1s
+        if (((int)(entity->character.flashTimer * 10) % 2) == 0) flashIntensity = 1.0f;
+    }
+
+    if (flashIntensity > 0.0f) {
+        BeginShaderMode(globalVariables.assets.flashShader);
+        SetShaderValue(globalVariables.assets.flashShader, globalVariables.assets.flashIntensityLoc, &flashIntensity, SHADER_UNIFORM_FLOAT);
+    }
+
     DrawTexturePro(texture, source, dest, origin, 0, tint);
+
+    if (flashIntensity > 0.0f) EndShaderMode();
 }
 void Render_DrawProjectile(Entity *entity)
 {
