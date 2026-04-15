@@ -1,5 +1,7 @@
 #include "main.h"
 #include <assert.h>
+#include <stdio.h>
+#include <time.h>
 
 //~ Begin of Assets Macros
 #define DEFINE_ASSET_GETTER(Type, Name, Array, Count, IDType)                  \
@@ -32,6 +34,7 @@ void Core_InitGame()
 {
     SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_WINDOW_UNDECORATED);
     InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Arcade Survivors Reworked");
+    SetRandomSeed(time(NULL));
 
     // Initialize Audio and Assets
     InitAudioDevice();
@@ -41,6 +44,7 @@ void Core_InitGame()
     globalVariables.lastEntityIndex = 0;
     globalVariables.playerIndex = 0;
     globalVariables.deathAuraIndex = 65535;
+    globalVariables.nextEntityId = 0;
 
     Entity player = Player_GeneratePlayer();
     Global_AddEntity(&player);
@@ -67,6 +71,7 @@ void Core_UpdateGame(float deltaTime) {
     Spawner_ProcessSpawnLogic(deltaTime);
     Weapon_ProcessAttack(deltaTime);
     Projectile_ProcessAllMovement(deltaTime);
+    Popup_UpdateAll(deltaTime);
     Global_UpdateGameTimer(deltaTime);
 }
 void Core_RenderGraphics() {
@@ -181,28 +186,28 @@ Entity Enemy_GenerateEnemy(EnemyType enemyType)
 
     switch (enemyType) {
     case ENEMY_TYPE_NORMAL:
-        enemy.enemyCharacter.health = 50.0f;
+        enemy.enemyCharacter.health = 15.0f;
         enemy.enemyCharacter.speed = 150.0f;
         enemy.enemyCharacter.xpDropAmount = 10.0f;
         enemy.scale = (Vector2){0.75f, 0.75f};
         break;
     case ENEMY_TYPE_FAST:
-        enemy.enemyCharacter.health = 30.0f;
+        enemy.enemyCharacter.health = 10.0f;
         enemy.enemyCharacter.speed = 225.0f;
         enemy.enemyCharacter.xpDropAmount = 15.0f;
         enemy.scale = (Vector2){0.5f, 0.5f};
         break;
     case ENEMY_TYPE_TANK:
-        enemy.enemyCharacter.health = 200.0f;
+        enemy.enemyCharacter.health = 115.0f;
         enemy.enemyCharacter.speed = 80.0f;
         enemy.enemyCharacter.xpDropAmount = 50.0f;
         enemy.scale = (Vector2){1.5f, 1.5f};
         enemy.radius = 60.0f;
         break;
     case ENEMY_TYPE_BOSS:
-        enemy.enemyCharacter.health = 1000.0f;
+        enemy.enemyCharacter.health = 3500.0f;
         enemy.enemyCharacter.speed = 120.0f;
-        enemy.enemyCharacter.xpDropAmount = 500.0f;
+        enemy.enemyCharacter.xpDropAmount = 5000.0f;
         enemy.scale = (Vector2){3.0f, 3.0f};
         enemy.radius = 120.0f;
         break;
@@ -428,6 +433,48 @@ void Player_AnimateMovement(Entity *player, float deltaTime)
 }
 //~ End of Player Implementation
 
+//~ Begin of Popup Implementation
+Entity Popup_SpawnDamagePopup(Vector2 pos, float amount) {
+    Entity e = {0};
+    e.type = ENTITY_TYPE_DAMAGE_POPUP;
+    e.bIsActive = true;
+    e.position = pos;
+    e.scale = (Vector2){1.0f, 1.0f};
+    e.damagePopup.amount = amount;
+    e.damagePopup.timer = 0.0f;
+    Global_AddEntity(&e);
+    return e;
+}
+void Popup_UpdateAll(float deltaTime) {
+    for (int i = 0; i < globalVariables.lastEntityIndex; i++) {
+        Entity* e = &globalVariables.entities[i];
+        if (!e->bIsActive || e->type != ENTITY_TYPE_DAMAGE_POPUP) continue;
+
+        e->damagePopup.timer += deltaTime;
+        if (e->damagePopup.timer >= 0.7f) {
+            Global_DestroyEntity(i);
+            continue;
+        }
+
+        float t = e->damagePopup.timer / 0.7f;
+        if (e->damagePopup.timer < 0.2f) {
+            // 0 to 0.2: upward movement and scale 1 to 1.25
+            float subt = e->damagePopup.timer / 0.2f;
+            float ease = -(float)cos(subt * PI * 0.5f) + 1.0f; // Ease In
+            e->position.y -= 100.0f * deltaTime;
+            e->scale.x = 1.0f + (0.25f * subt); // Linear scale for burst is usually fine
+            e->scale.y = e->scale.x;
+        } else {
+            // 0.2 to 0.7: scale 1.25 to 0.5
+            float subt = (e->damagePopup.timer - 0.2f) / 0.5f;
+            float ease = (float)sin(subt * PI * 0.5f); // Ease Out
+            e->scale.x = 1.25f - (0.75f * ease);
+            e->scale.y = e->scale.x;
+        }
+    }
+}
+//~ End of Popup Implementation
+
 //~ Begin of Projectile Implementation
 Entity Projectile_Spawn(ProjectileType type, Vector2 pos, Vector2 vel, float damage, float lifeTime, uint8_t penetration)
 {
@@ -442,7 +489,13 @@ Entity Projectile_Spawn(ProjectileType type, Vector2 pos, Vector2 vel, float dam
     p.projectile.damage = damage * globalVariables.playerStats.damageMultiplier;
     p.projectile.lifeTime = lifeTime;
     p.projectile.penetration = penetration;
-    for (int i = 0; i < 16; i++) p.projectile.crystal.hitIds[i] = 65535; // None
+    if (type == PROJECTILE_TYPE_CRYSTAL_SHARD || type == PROJECTILE_TYPE_NATURE_SPIKE) {
+        for (int i = 0; i < 16; i++) p.projectile.hitTracking.hitIds[i] = 65535;
+    } else {
+        p.projectile.explosive.explosionDamageMultiplier = 1.0f;
+        p.projectile.explosive.explosionRadius = 0.0f;
+    }
+    if (type == PROJECTILE_TYPE_NATURE_SPIKE) p.projectile.timer = 0.0f; // Reset timer for first hit
     return p;
 }
 void Projectile_ProcessAllMovement(float deltaTime)
@@ -456,14 +509,21 @@ void Projectile_ProcessAllMovement(float deltaTime)
         if (p->projectile.lifeTime <= 0) { Global_DestroyEntity(i); continue; }
 
         switch (p->projectile.projectileType) {
+            case PROJECTILE_TYPE_NATURE_SPIKE:
+                p->projectile.timer -= deltaTime;
+                if (p->projectile.timer <= 0) {
+                    p->projectile.timer = 0.2f;
+                    for (int k = 0; k < 16; k++) p->projectile.hitTracking.hitIds[k] = 65535;
+                }
+                break;
             case PROJECTILE_TYPE_CRYSTAL_SHARD:
             case PROJECTILE_TYPE_FIREBALL:
                 p->position.x += p->velocity.x * deltaTime;
                 p->position.y += p->velocity.y * deltaTime;
                 break;
             case PROJECTILE_TYPE_BOMB:
-                p->projectile.explosive.timer -= deltaTime;
-                if (p->projectile.explosive.timer <= 0) {
+                p->projectile.timer -= deltaTime;
+                if (p->projectile.timer <= 0) {
                     Entity exp = Projectile_Spawn(PROJECTILE_TYPE_EXPLOSION, p->position, (Vector2){0,0}, p->projectile.damage, 0.2f, 255);
                     exp.radius = p->radius;
                     Global_AddEntity(&exp);
@@ -472,14 +532,38 @@ void Projectile_ProcessAllMovement(float deltaTime)
                     continue;
                 }
                 break;
-            case PROJECTILE_TYPE_DEATH_AURA:
+            case PROJECTILE_TYPE_DEATH_AURA: {
                 p->position = player->position; 
-                break;
+                p->projectile.timer -= deltaTime;
+                if (p->projectile.timer <= 0) {
+                    uint8_t level = 1;
+                    for (int w = 0; w < MAX_WEAPON_CAPACITY; w++) {
+                        if (globalVariables.inventory.weaponDatas[w].level > 0 && globalVariables.inventory.weaponDatas[w].weaponType == WEAPON_TYPE_DEATH_AURA) {
+                            level = globalVariables.inventory.weaponDatas[w].level;
+                            break;
+                        }
+                    }
+                    WeaponDefinition* def = &globalVariables.InventoryDefinitions.weaponLevelsDefinition.deathAura[level-1];
+                    p->projectile.timer = def->delayBetweenAttacks / globalVariables.playerStats.attackSpeedMultiplier;
+                    
+                    for (int j = 0; j < globalVariables.lastEntityIndex; j++) {
+                        Entity* enemy = &globalVariables.entities[j];
+                        if (enemy->bIsActive && enemy->type == ENTITY_TYPE_ENEMY) {
+                            if (CheckCollisionCircles(p->position, p->radius, enemy->position, enemy->radius)) {
+                                enemy->enemyCharacter.health -= p->projectile.damage;
+                                Popup_SpawnDamagePopup(enemy->position, p->projectile.damage);
+                                if (enemy->enemyCharacter.health <= 0) Global_DestroyEntity(j);
+                            }
+                        }
+                    }
+                }
+            } break;
             default: break;
         }
 
         if (p->projectile.projectileType != PROJECTILE_TYPE_EXPLOSION && 
-            p->projectile.projectileType != PROJECTILE_TYPE_BOMB) {
+            p->projectile.projectileType != PROJECTILE_TYPE_BOMB &&
+            p->projectile.projectileType != PROJECTILE_TYPE_DEATH_AURA) {
             
             for (int j = 0; j < globalVariables.lastEntityIndex; j++) {
                 Entity* enemy = &globalVariables.entities[j];
@@ -487,19 +571,23 @@ void Projectile_ProcessAllMovement(float deltaTime)
 
                 if (CheckCollisionCircles(p->position, p->radius, enemy->position, enemy->radius)) {
                     bool alreadyHit = false;
-                    if (p->projectile.projectileType == PROJECTILE_TYPE_CRYSTAL_SHARD) {
+                    if (p->projectile.projectileType == PROJECTILE_TYPE_CRYSTAL_SHARD || 
+                        p->projectile.projectileType == PROJECTILE_TYPE_NATURE_SPIKE) {
                         for (int k = 0; k < 16; k++) {
-                            if (p->projectile.crystal.hitIds[k] == enemy->id) { alreadyHit = true; break; }
+                            if (p->projectile.hitTracking.hitIds[k] == enemy->id) { alreadyHit = true; break; }
                         }
                     }
 
                     if (!alreadyHit) {
-                        enemy->enemyCharacter.health -= p->projectile.damage;
+                        float dmgApplied = p->projectile.damage;
+                        enemy->enemyCharacter.health -= dmgApplied;
+                        Popup_SpawnDamagePopup(enemy->position, dmgApplied);
                         PlaySound(Assets_GetSound(ASSET_SOUND_TYPE_DAMAGE));
 
-                        if (p->projectile.projectileType == PROJECTILE_TYPE_CRYSTAL_SHARD) {
-                            for (int k = 15; k > 0; k--) p->projectile.crystal.hitIds[k] = p->projectile.crystal.hitIds[k-1];
-                            p->projectile.crystal.hitIds[0] = enemy->id;
+                        if (p->projectile.projectileType == PROJECTILE_TYPE_CRYSTAL_SHARD || 
+                            p->projectile.projectileType == PROJECTILE_TYPE_NATURE_SPIKE) {
+                            for (int k = 15; k > 0; k--) p->projectile.hitTracking.hitIds[k] = p->projectile.hitTracking.hitIds[k-1];
+                            p->projectile.hitTracking.hitIds[0] = enemy->id;
                         }
 
                         if (enemy->enemyCharacter.health <= 0) {
@@ -507,7 +595,8 @@ void Projectile_ProcessAllMovement(float deltaTime)
                         }
 
                         if (p->projectile.projectileType == PROJECTILE_TYPE_FIREBALL) {
-                             Entity exp = Projectile_Spawn(PROJECTILE_TYPE_EXPLOSION, p->position, (Vector2){0,0}, p->projectile.damage, 0.2f, 255);
+                             float expDmg = p->projectile.damage * p->projectile.explosive.explosionDamageMultiplier;
+                             Entity exp = Projectile_Spawn(PROJECTILE_TYPE_EXPLOSION, p->position, (Vector2){0,0}, expDmg, 0.2f, 255);
                              exp.radius = p->projectile.explosive.explosionRadius; 
                              Global_AddEntity(&exp);
                              Global_DestroyEntity(i);
@@ -533,6 +622,7 @@ void Projectile_ProcessAllMovement(float deltaTime)
                 if (CheckCollisionCircles(p->position, p->radius, enemy->position, enemy->radius)) {
                     // Explosions no longer use hit tracking to save memory, they deal damage once per frame for very short duration
                     enemy->enemyCharacter.health -= p->projectile.damage;
+                    Popup_SpawnDamagePopup(enemy->position, p->projectile.damage);
                     if (enemy->enemyCharacter.health <= 0) Global_DestroyEntity(j);
                 }
             }
@@ -540,7 +630,7 @@ void Projectile_ProcessAllMovement(float deltaTime)
         next_p:;
     }
 }
-//~ End of Projectile Implementation
+//~ End of Popup Implementation
 
 //~ Begin of Relic Implementation
 void Relic_GenerateRelicDefinition() {
@@ -711,7 +801,8 @@ void Render_DrawProjectile(Entity *entity)
         DrawCircleLinesV(entity->position, 20.0f * entity->scale.x, GRAY);
         break;
     case PROJECTILE_TYPE_NATURE_SPIKE:
-        DrawPoly(entity->position, 3, 20.0f * entity->scale.x, 0, GREEN);
+        DrawPoly(entity->position, 3, 30.0f * entity->scale.x, 0, LIME);
+        DrawPolyLines(entity->position, 3, 30.0f * entity->scale.x, 0, GREEN);
         break;
     case PROJECTILE_TYPE_DEATH_AURA:
         DrawCircleV(entity->position, entity->radius, ColorAlpha(BLACK, 0.3f));
@@ -741,16 +832,16 @@ void Render_DrawAllEntitiesSorted()
 
     // Pass 1: Count entities per bucket
     for (int i = 0; i < globalVariables.lastEntityIndex; i++) {
-        if (!globalVariables.entities[i].bIsActive)
-        continue;
+        if (!globalVariables.entities[i].bIsActive || globalVariables.entities[i].type == ENTITY_TYPE_DAMAGE_POPUP)
+            continue;
 
         float y = globalVariables.entities[i].position.y;
         int bucket = (int)((y - MAP_Y_MIN) / (MAP_HEIGHT / BUCKET_COUNT));
 
         if (bucket < 0)
-        bucket = 0;
+            bucket = 0;
         if (bucket >= BUCKET_COUNT)
-        bucket = BUCKET_COUNT - 1;
+            bucket = BUCKET_COUNT - 1;
 
         bucketCounts[bucket]++;
     }
@@ -768,16 +859,16 @@ void Render_DrawAllEntitiesSorted()
         currentOffsets[i] = bucketOffsets[i];
 
     for (int i = 0; i < globalVariables.lastEntityIndex; i++) {
-        if (!globalVariables.entities[i].bIsActive)
-        continue;
+        if (!globalVariables.entities[i].bIsActive || globalVariables.entities[i].type == ENTITY_TYPE_DAMAGE_POPUP)
+            continue;
 
         float y = globalVariables.entities[i].position.y;
         int bucket = (int)((y - MAP_Y_MIN) / (MAP_HEIGHT / BUCKET_COUNT));
 
         if (bucket < 0)
-        bucket = 0;
+            bucket = 0;
         if (bucket >= BUCKET_COUNT)
-        bucket = BUCKET_COUNT - 1;
+            bucket = BUCKET_COUNT - 1;
 
         sortedIndices[currentOffsets[bucket]] = i;
         currentOffsets[bucket]++;
@@ -801,6 +892,35 @@ void Render_DrawAllEntitiesSorted()
         } else {
             Render_DrawEntity(entity);
         }
+    }
+
+    // Pass 4: Draw Popups on top of everything else in world space
+    for (int i = 0; i < globalVariables.lastEntityIndex; i++) {
+        Entity* entity = &globalVariables.entities[i];
+        if (!entity->bIsActive || entity->type != ENTITY_TYPE_DAMAGE_POPUP) continue;
+
+        char dmgText[16];
+        sprintf(dmgText, "%.0f", entity->damagePopup.amount);
+        float fontSize = 20.0f * entity->scale.x;
+        Vector2 size = MeasureTextEx(GetFontDefault(), dmgText, fontSize, 1.0f);
+        Vector2 drawPos = { entity->position.x - size.x / 2.0f, entity->position.y - size.y / 2.0f };
+        
+        float alpha = 1.0f;
+        if (entity->damagePopup.timer > 0.2f) {
+            float t = (entity->damagePopup.timer - 0.2f) / 0.5f;
+            alpha = 1.0f - (float)sin(t * PI * 0.5f); // Ease Out Alpha
+        }
+        Color textColor = ColorAlpha(YELLOW, alpha);
+        Color outlineColor = ColorAlpha(BLACK, alpha);
+
+        // Draw Outline
+        DrawTextEx(GetFontDefault(), dmgText, (Vector2){drawPos.x + 1, drawPos.y + 1}, fontSize, 1.0f, outlineColor);
+        DrawTextEx(GetFontDefault(), dmgText, (Vector2){drawPos.x - 1, drawPos.y - 1}, fontSize, 1.0f, outlineColor);
+        DrawTextEx(GetFontDefault(), dmgText, (Vector2){drawPos.x + 1, drawPos.y - 1}, fontSize, 1.0f, outlineColor);
+        DrawTextEx(GetFontDefault(), dmgText, (Vector2){drawPos.x - 1, drawPos.y + 1}, fontSize, 1.0f, outlineColor);
+        
+        // Draw Main Text
+        DrawTextEx(GetFontDefault(), dmgText, drawPos, fontSize, 1.0f, textColor);
     }
 }
 // ~End of Render Implementation
@@ -974,7 +1094,7 @@ void Weapon_GenerateWeaponLevels()
     // Crystal Wand
     for (int i = 0; i < MAX_WEAPON_LEVEL; i++) {
         WeaponDefinition* def = &globalVariables.InventoryDefinitions.weaponLevelsDefinition.crystalShard[i];
-        def->damage = 10.0f + (i * 5.0f);
+        def->damage = 15.1f + (i * 5.0f);
         def->delayBetweenAttacks = 4.0f;
         def->projectileAmount = 1 + (i / 2);
         def->crystal.penetration = 2 + (i);
@@ -987,7 +1107,7 @@ void Weapon_GenerateWeaponLevels()
     // Fireball Ring
     for (int i = 0; i < MAX_WEAPON_LEVEL; i++) {
         WeaponDefinition* def = &globalVariables.InventoryDefinitions.weaponLevelsDefinition.fireballRing[i];
-        def->damage = 15.0f + (i * 8.0f);
+        def->damage = 30.0f + (i * 8.0f);
         def->delayBetweenAttacks = 5.0f;
         def->projectileAmount = 1;
         if (i + 1 >= 5) def->projectileAmount = 2;
@@ -995,35 +1115,35 @@ void Weapon_GenerateWeaponLevels()
         if (i + 1 >= 13) def->projectileAmount = 4;
         if (i + 1 >= 15) def->projectileAmount = 6;
         def->fireball.explosionRadius = 100.0f + (i * 10.0f);
-        def->fireball.explosionDamageMultipler = 1.0f + (i * 0.1f);
+        def->fireball.explosionDamageMultipler = 0.5f + (i * 0.1f);
     }
 
     // Bomb Shoes
     for (int i = 0; i < MAX_WEAPON_LEVEL; i++) {
         WeaponDefinition* def = &globalVariables.InventoryDefinitions.weaponLevelsDefinition.bombShoes[i];
-        def->damage = 100.0f + (i * 50.0f);
+        def->damage = 50.0f + (i * 35.0f);
         def->delayBetweenAttacks = 8.0f - (i * 0.428f); 
         if (def->delayBetweenAttacks < 2.0f) def->delayBetweenAttacks = 2.0f;
         def->bombShoes.delayToExplode = 3.0f - (i * 0.071f); 
-        def->bombShoes.explosionRadius = 150.0f + (i * 25.0f);
+        def->bombShoes.explosionRadius = 100.0f + (i * 25.0f);
     }
 
     // Nature Spikes
     for (int i = 0; i < MAX_WEAPON_LEVEL; i++) {
         WeaponDefinition* def = &globalVariables.InventoryDefinitions.weaponLevelsDefinition.natureSpikes[i];
         def->damage = 10.0f + (i * 4.0f);
-        def->delayBetweenAttacks = 6.0f - (i * 0.285f); 
+        def->delayBetweenAttacks = 5.5f - (i * 0.285f); 
         if (def->delayBetweenAttacks < 2.0f) def->delayBetweenAttacks = 2.0f;
         def->projectileAmount = 1 + (i / 7); 
         def->natureSpikes.spikeDuration = 2.0f + (i * 0.142f); 
         def->natureSpikes.rangeToSpawn = 400.0f + (i * 40.0f);
-        def->natureSpikes.spikeMaxDamage = 5 + (i * 5); 
+        def->natureSpikes.spikeMaxDamage = 100 + (i * 80); 
     }
 
     // Death Aura
     for (int i = 0; i < MAX_WEAPON_LEVEL; i++) {
         WeaponDefinition* def = &globalVariables.InventoryDefinitions.weaponLevelsDefinition.deathAura[i];
-        def->damage = 5.0f + (i * 1.78f); 
+        def->damage = 5.1f + (i * 1.78f); 
         def->delayBetweenAttacks = 0.25f - (i * 0.0089f); 
         def->deathAura.size = 150.0f + (i * 30.0f);
     }
@@ -1109,13 +1229,14 @@ void Weapon_ProcessAttack(float deltaTime)
                              Vector2 offsetDir = Vector2Rotate(dirs[d], (amt - (def->projectileAmount-1)/2.0f) * 0.2f);
                              Entity p = Projectile_Spawn(PROJECTILE_TYPE_FIREBALL, player->position, Vector2Scale(offsetDir, 400.0f), def->damage, 4.0f, 1);
                              p.projectile.explosive.explosionRadius = def->fireball.explosionRadius; 
+                             p.projectile.explosive.explosionDamageMultiplier = def->fireball.explosionDamageMultipler;
                              Global_AddEntity(&p);
                         }
                     }
                 } break;
                 case WEAPON_TYPE_BOMB_SHOES: {
                     Entity p = Projectile_Spawn(PROJECTILE_TYPE_BOMB, player->position, (Vector2){0,0}, def->damage, 10.0f, 1);
-                    p.projectile.explosive.timer = def->bombShoes.delayToExplode;
+                    p.projectile.timer = def->bombShoes.delayToExplode;
                     p.radius = def->bombShoes.explosionRadius;
                     Global_AddEntity(&p);
                 } break;
@@ -1138,9 +1259,17 @@ void Weapon_ProcessAttack(float deltaTime)
                     }
                 } break;
                 case WEAPON_TYPE_DEATH_AURA: {
-                    Entity p = Projectile_Spawn(PROJECTILE_TYPE_DEATH_AURA, player->position, (Vector2){0,0}, def->damage, weapon->attackTimer, 255);
-                    p.radius = def->deathAura.size * globalVariables.playerStats.sizeMultiplier;
-                    Global_AddEntity(&p);
+                    if (globalVariables.deathAuraIndex >= globalVariables.lastEntityIndex) {
+                        Entity p = Projectile_Spawn(PROJECTILE_TYPE_DEATH_AURA, player->position, (Vector2){0,0}, def->damage, 99999.0f, 255);
+                        p.radius = def->deathAura.size * globalVariables.playerStats.sizeMultiplier;
+                        p.projectile.timer = 0.0f; // Use this as tick timer
+                        Global_AddEntity(&p);
+                    } else {
+                        // Update existing aura stats if needed
+                        Entity* aura = &globalVariables.entities[globalVariables.deathAuraIndex];
+                        aura->radius = def->deathAura.size * globalVariables.playerStats.sizeMultiplier;
+                        aura->projectile.damage = def->damage * globalVariables.playerStats.damageMultiplier;
+                    }
                 } break;
             }
         }

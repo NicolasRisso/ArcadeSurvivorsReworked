@@ -37,7 +37,8 @@ typedef enum EntityType : uint8_t {
     ENTITY_TYPE_CHARACTER = 1,
     ENTITY_TYPE_PLAYER = 2,
     ENTITY_TYPE_PROJECTILE = 3,
-    ENTITY_TYPE_ENEMY = 4
+    ENTITY_TYPE_ENEMY = 4,
+    ENTITY_TYPE_DAMAGE_POPUP = 5
 } EntityType;
 
 typedef enum ProjectileType : uint8_t {
@@ -148,16 +149,22 @@ typedef struct Projectile{
     float lifeTime;
     uint8_t penetration;
     uint16_t ownerID;
+    float timer;
     union {
         struct {
             uint16_t hitIds[16];
-        } crystal;
+        } hitTracking;
         struct {
             float explosionRadius;
-            float timer;
+            float explosionDamageMultiplier;
         } explosive;
     };
 } Projectile;
+
+typedef struct DamagePopup {
+    float amount;
+    float timer;
+} DamagePopup;
 
 typedef struct Entity{
     EntityType type;
@@ -173,6 +180,7 @@ typedef struct Entity{
         Character character;
         EnemyCharacter enemyCharacter;
         Projectile projectile;
+        DamagePopup damagePopup;
     };
 
     // Sprite Data
@@ -312,6 +320,7 @@ typedef struct GlobalVariables{
     SpawnerData spawnerData;
     float gameTimer;
     uint16_t deathAuraIndex;
+    uint16_t nextEntityId;
 } GlobalVariables;
 // ~End of Structs
 
@@ -362,6 +371,11 @@ void Player_ProcessMovement(Entity* player, float deltaTime);
 void Player_AnimateMovement(Entity* player, float deltaTime);
 //~ End of Player Implementation
 
+//~ Begin of Popup Implementation
+Entity Popup_SpawnDamagePopup(Vector2 pos, float amount);
+void Popup_UpdateAll(float deltaTime);
+//~ End of Popup Implementation
+
 //~ Begin of Projectile Implementation
 Entity Projectile_Spawn(ProjectileType type, Vector2 pos, Vector2 vel, float damage, float lifeTime, uint8_t penetration);
 void Projectile_ProcessAllMovement(float deltaTime);
@@ -401,6 +415,7 @@ inline static bool Global_AddEntity(Entity* entity)
     if (!entity) return false;
     if (globalVariables.lastEntityIndex >= MAX_ENTITIES_AMOUNT) return false;
 
+    entity->id = globalVariables.nextEntityId++;
     globalVariables.entities[globalVariables.lastEntityIndex] = *entity;
     if (entity->type == ENTITY_TYPE_PROJECTILE && entity->projectile.projectileType == PROJECTILE_TYPE_DEATH_AURA) {
         globalVariables.deathAuraIndex = globalVariables.lastEntityIndex;
