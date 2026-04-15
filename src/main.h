@@ -135,6 +135,8 @@ typedef struct Character{
     float speed;
     float flashTimer;
     float invulnerableTimer;
+    bool bIsDead;
+    float deathFadeTimer;
 } Character;
 
 typedef struct EnemyCharacter{

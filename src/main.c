@@ -298,7 +298,7 @@ void Enemy_ProcessAllMovement(float deltaTime)
         current->position.y += separation.y * deltaTime * 10.0f;
 
         // Player Contact Damage
-        if (player->character.invulnerableTimer <= 0) {
+        if (!player->character.bIsDead && player->character.invulnerableTimer <= 0) {
             float distToPlayer = Vector2Distance(current->position, player->position);
             if (distToPlayer < (current->radius + player->radius)) {
                 float damageTable[] = { 10.0f, 5.0f, 25.0f, 50.0f }; // Normal, Fast, Tank, Boss
@@ -308,6 +308,12 @@ void Enemy_ProcessAllMovement(float deltaTime)
                 player->character.invulnerableTimer = 0.5f;
                 player->character.flashTimer = 0.5f;
                 PlaySound(Assets_GetSound(ASSET_SOUND_TYPE_PLAYER_DAMAGE));
+
+                if (player->character.health <= 0) {
+                    player->character.bIsDead = true;
+                    player->character.deathFadeTimer = 2.0f;
+                    player->character.health = 0;
+                }
             }
         }
 
@@ -430,6 +436,12 @@ PlayerStats Player_GeneratePlayerStats()
 }
 void Player_ProcessMovement(Entity *player, float deltaTime)
 {
+    if (!player || !player->bIsActive) return;
+    if (player->character.bIsDead) {
+        if (player->character.deathFadeTimer > 0) player->character.deathFadeTimer -= deltaTime;
+        return;
+    }
+
     Vector2 direction = {0, 0};
 
     if (IsKeyDown(KEY_W) || IsKeyDown(KEY_UP))
@@ -851,6 +863,13 @@ void Render_DrawEntity(Entity *entity)
         if (((int)(entity->character.flashTimer * 10) % 2) == 0) flashIntensity = 1.0f;
     }
 
+    // Death Fade Logic
+    if (entity->type == ENTITY_TYPE_PLAYER && entity->character.bIsDead) {
+        if (entity->character.deathFadeTimer <= 0) return; // Completely gone
+        float alpha = entity->character.deathFadeTimer / 2.0f;
+        tint = ColorAlpha(tint, alpha);
+    }
+
     if (flashIntensity > 0.0f) {
         BeginShaderMode(globalVariables.assets.flashShader);
         SetShaderValue(globalVariables.assets.flashShader, globalVariables.assets.flashIntensityLoc, &flashIntensity, SHADER_UNIFORM_FLOAT);
@@ -1078,6 +1097,9 @@ SpawnerData Spawner_GenerateSpawnerData()
 }
 void Spawner_ProcessSpawnLogic(float deltaTime)
 {
+    Entity* player = Global_GetPlayer();
+    if (player->character.bIsDead) return;
+
     globalVariables.spawnerData.spawnTimer -= deltaTime;
     if (globalVariables.spawnerData.spawnTimer > 0)
         return;
@@ -1114,7 +1136,6 @@ void Spawner_ProcessSpawnLogic(float deltaTime)
         Helper_GetRandomUint16InRange(selectedDef->amountToSpawnRange);
     float distance =
         Helper_GetRandomFloatInRange(selectedDef->distanceToSpawnRange);
-    Entity *player = Global_GetPlayer();
 
     // Random Direction
     float baseAngle = (float)GetRandomValue(0, 360) * (PI / 180.0f);
@@ -1252,7 +1273,7 @@ bool Weapon_AddWeapon(WeaponType weaponType)
 void Weapon_ProcessAttack(float deltaTime)
 {
     Entity* player = Global_GetPlayer();
-    if (!player) return;
+    if (!player || player->character.bIsDead) return;
 
     for (int i = 0; i < MAX_WEAPON_CAPACITY; i++) {
         WeaponData* weapon = &globalVariables.inventory.weaponDatas[i];
@@ -1358,6 +1379,9 @@ void Weapon_ProcessAttack(float deltaTime)
 //~ Begin of Global Implementation
 void Global_UpdateGameTimer(float deltaTime)
 {
+    Entity* player = Global_GetPlayer();
+    if (player && player->character.bIsDead) return;
+
     globalVariables.gameTimer += deltaTime;
     HUD_UpdateData();
 }
