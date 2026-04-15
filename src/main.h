@@ -113,10 +113,20 @@ typedef enum SpawnType : uint8_t {
     SPAWN_TYPE_LINE = 2,
     SPAWN_TYPE_AROUND = 3
 } SpawnType;
+
+typedef enum UpgradeType : uint8_t {
+    UPGRADE_TYPE_WEAPON,
+    UPGRADE_TYPE_RELIC
+} UpgradeType;
+
+typedef enum GameEventType : uint8_t {
+    EVENT_TYPE_NONE = 0,
+    EVENT_TYPE_SWARM = 1,
+    EVENT_TYPE_BOSS = 2
+} GameEventType;
 // ~End of Enums
 
 // ~Begin of Structs
-
 typedef struct SpriteData {
     uint8_t spriteID;
     bool flipX;
@@ -151,6 +161,7 @@ typedef struct Character{
 typedef struct EnemyCharacter{
     float health;
     float speed;
+    float damage;
 
     EnemyType enemyType;
     float xpDropAmount;
@@ -312,11 +323,6 @@ typedef struct InventoryDefinitions {
     RelicDefinition RelicDefinitions[RELIC_TYPE_COUNT];
 } InventoryDefinitions;
 
-typedef enum UpgradeType {
-    UPGRADE_TYPE_WEAPON,
-    UPGRADE_TYPE_RELIC
-} UpgradeType;
-
 typedef struct UpgradeOption {
     UpgradeType type;
     union {
@@ -346,6 +352,13 @@ typedef struct PlayerStats{
     float lifeStealMultiplier;
     float xpMultiplier;
 } PlayerStats;
+ 
+typedef struct GameEventState {
+    GameEventType activeEventType;
+    float activeEventTimer;
+    float swarmCycleTimer;
+    float bossCycleTimer;
+} GameEventState;
 
 typedef struct GlobalVariables{
     Assets assets;
@@ -367,6 +380,7 @@ typedef struct GlobalVariables{
     uint16_t nextEntityId;
     bool bShowInventory;
     LevelUpState levelUpState;
+    GameEventState eventState;
 } GlobalVariables;
 
 // ~End of Structs
@@ -409,12 +423,17 @@ Entity Enemy_GenerateEnemy(EnemyType enemyType);
 void Enemy_ProcessAllMovement(float deltaTime);
 //~ End of Enemy Implementation
 
+//~ Begin of Event Implementation
+void Event_TriggerEvent(GameEventType type);
+//~ End of Event Implementation
+
 //~ Begin of HUD Implementation
 void HUD_Init();
 void HUD_UpdateData();
 void HUD_Draw();
 void HUD_DrawInventory();
 void HUD_DrawLevelUp();
+void HUD_DrawEvent();
 void HUD_GenerateLevelUpOptions();
 //~ End of HUD Implementation
 

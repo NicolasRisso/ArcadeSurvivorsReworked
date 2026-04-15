@@ -65,6 +65,12 @@ void Core_InitGame()
     SetMusicVolume(music, 0.5f);
     PlayMusicStream(music);
 
+    // Init Event State
+    globalVariables.eventState.swarmCycleTimer = 0.0f;
+    globalVariables.eventState.bossCycleTimer = 0.0f;
+    globalVariables.eventState.activeEventTimer = 0.0f;
+    globalVariables.eventState.activeEventType = EVENT_TYPE_NONE;
+
     SetTargetFPS(240);
     DisableCursor();
 }
@@ -115,10 +121,29 @@ void Core_ProcessInput()
         globalVariables.bShowInventory = !globalVariables.bShowInventory;
     }
 }
-
 void Core_UpdateGame(float deltaTime) {
     // Update Audio & Music (must update every frame for Raylib music stream)
     Audio_Update(deltaTime);
+
+    // Update Special Events
+    globalVariables.eventState.swarmCycleTimer += deltaTime;
+    globalVariables.eventState.bossCycleTimer += deltaTime;
+    
+    if (globalVariables.eventState.activeEventTimer > 0) {
+        globalVariables.eventState.activeEventTimer -= deltaTime;
+        if (globalVariables.eventState.activeEventTimer <= 0) {
+            globalVariables.eventState.activeEventType = EVENT_TYPE_NONE;
+        }
+    }
+
+    if (globalVariables.eventState.swarmCycleTimer >= 120.0f) {
+        globalVariables.eventState.swarmCycleTimer -= 120.0f;
+        Event_TriggerEvent(EVENT_TYPE_SWARM);
+    }
+    if (globalVariables.eventState.bossCycleTimer >= 210.0f) {
+        globalVariables.eventState.bossCycleTimer -= 210.0f;
+        Event_TriggerEvent(EVENT_TYPE_BOSS);
+    }
 
     if (globalVariables.levelUpState.bShowLevelUp) return;
     Player_ProcessMovement(Global_GetPlayer(), deltaTime);
@@ -342,9 +367,34 @@ Entity Enemy_GenerateEnemy(EnemyType enemyType)
         enemy.enemyCharacter.health = 3500.0f;
         enemy.enemyCharacter.speed = 120.0f;
         enemy.enemyCharacter.xpDropAmount = 5000.0f;
+        enemy.enemyCharacter.damage = 50.0f;
         enemy.scale = (Vector2){3.0f, 3.0f};
         enemy.radius = 120.0f;
         break;
+    }
+
+    // Apply Progression Scaling
+    int minutes = (int)(globalVariables.gameTimer / 60.0f);
+    if (minutes > 0) {
+        float hpScale = powf(1.25f, (float)minutes);
+        float dmgScale = powf(1.15f, (float)minutes);
+        float xpScale = powf(1.05f, (float)minutes);
+        float speedScale = powf(1.03f, (float)minutes);
+
+        enemy.enemyCharacter.health *= hpScale;
+        enemy.enemyCharacter.damage *= dmgScale;
+        enemy.enemyCharacter.xpDropAmount *= xpScale;
+        enemy.enemyCharacter.speed *= speedScale;
+    }
+
+    // Set damage cases for others
+    if (enemyType == ENEMY_TYPE_NORMAL) enemy.enemyCharacter.damage = 10.0f;
+    else if (enemyType == ENEMY_TYPE_FAST) enemy.enemyCharacter.damage = 5.0f;
+    else if (enemyType == ENEMY_TYPE_TANK) enemy.enemyCharacter.damage = 25.0f;
+
+    // Scale damage after set if minutes > 0
+    if (minutes > 0 && enemyType != ENEMY_TYPE_BOSS) {
+        enemy.enemyCharacter.damage *= powf(1.15f, (float)minutes);
     }
 
     return enemy;
@@ -404,8 +454,7 @@ void Enemy_ProcessAllMovement(float deltaTime)
         if (!player->character.bIsDead && player->character.invulnerableTimer <= 0) {
             float distToPlayer = Vector2Distance(current->position, player->position);
             if (distToPlayer < (current->radius + player->radius)) {
-                float damageTable[] = { 10.0f, 5.0f, 25.0f, 50.0f }; // Normal, Fast, Tank, Boss
-                float damage = damageTable[current->enemyCharacter.enemyType];
+                float damage = current->enemyCharacter.damage;
                 
                 player->character.health -= damage;
                 player->character.invulnerableTimer = 0.5f;
@@ -436,7 +485,49 @@ void Enemy_ProcessAllMovement(float deltaTime)
 }
 //~ End of Enemy Implementation
 
+//~ Begin of Event Implementation
+void Event_TriggerEvent(GameEventType type)
+{
+    globalVariables.eventState.activeEventType = type;
+    globalVariables.eventState.activeEventTimer = 20.0f;
+
+    if (type == EVENT_TYPE_BOSS) {
+        // Spawn a Boss at a random location away from the player
+        Entity boss = Enemy_GenerateEnemy(ENEMY_TYPE_BOSS);
+        float angle = (float)GetRandomValue(0, 360) * DEG2RAD;
+        float dist = 800.0f;
+        boss.position = Vector2Add(Global_GetPlayer()->position, (Vector2){ cosf(angle) * dist, sinf(angle) * dist });
+        Collision_MapBorder(&boss);
+        Global_AddEntity(&boss);
+    }
+}
+//~ End of Event Implementation
+
 //~ Begin of HUD Implementation
+void HUD_DrawEvent()
+{
+    const char* msg = NULL;
+    float alpha = 0.0f;
+
+    // Check Swarm Warning (120s cycle)
+    float swarmRemaining = 120.0f - globalVariables.eventState.swarmCycleTimer;
+    if (swarmRemaining > 0 && swarmRemaining <= 5.0f) {
+        msg = "SWARM INCOMING";
+    }
+
+    // Check Boss Warning (210s cycle)
+    float bossRemaining = 210.0f - globalVariables.eventState.bossCycleTimer;
+    if (bossRemaining > 0 && bossRemaining <= 5.0f) {
+        msg = "BOSS INCOMING";
+    }
+
+    if (msg) {
+        alpha = fabsf(sinf(GetTime() * 10.0f));
+        int fontSize = 60;
+        int textWidth = MeasureText(msg, fontSize);
+        DrawText(msg, SCREEN_WIDTH/2 - textWidth/2, SCREEN_HEIGHT/2 - 100, fontSize, Fade(RED, alpha));
+    }
+}
 void HUD_Init()
 {
     globalVariables.gameTimer = 0.0f;
@@ -497,6 +588,8 @@ void HUD_Draw()
     DrawText(timerText, timerX - 2, timerY + 2, 40, BLACK);
     DrawText(timerText, timerX + 2, timerY + 2, 40, BLACK);
     DrawText(timerText, timerX, timerY, 40, WHITE);
+    
+    HUD_DrawEvent();
 }
 
 void HUD_DrawInventory()
@@ -1620,9 +1713,21 @@ void Spawner_ProcessSpawnLogic(float deltaTime)
     if (globalVariables.spawnerData.spawnTimer > 0)
         return;
 
+    // Calculate Current Spawner Delay based on Progression and Events
+    int minutes = (int)(globalVariables.gameTimer / 60.0f);
+    float spawnerSpeedScale = powf(1.15f, (float)minutes);
+    float eventMultiplier = 1.0f;
+    
+    if (globalVariables.eventState.activeEventType == EVENT_TYPE_SWARM) {
+        eventMultiplier = 3.0f; // +200%
+    } else if (globalVariables.eventState.activeEventType == EVENT_TYPE_BOSS) {
+        eventMultiplier = 1.5f; // +50%
+    }
+
+    float actualDelay = (globalVariables.spawnerData.delayBetweenSpawns / spawnerSpeedScale) / eventMultiplier;
+
     // Reset Timer
-    globalVariables.spawnerData.spawnTimer =
-        globalVariables.spawnerData.delayBetweenSpawns;
+    globalVariables.spawnerData.spawnTimer = actualDelay;
 
     // Phase 1: Weighted Selection
     int totalWeight = 0;
