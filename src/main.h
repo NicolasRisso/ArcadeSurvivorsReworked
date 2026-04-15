@@ -102,7 +102,8 @@ typedef enum AssetMusicType : uint8_t {
 typedef enum VisualType : uint8_t {
     VISUAL_TYPE_NONE = 0, // For entities that have no sprite
     VISUAL_TYPE_SPRITE = 1, // For entities with sprites
-    VISUAL_TYPE_ANIMATED_SPRITE = 2 // For entities with animated sprites
+    VISUAL_TYPE_ANIMATED_SPRITE = 2, // For entities with animated sprites
+    VISUAL_TYPE_ANIMATED_STATIC_SPRITE = 3 // For entities with animated static sprites (e.g. bounce)
 } VisualType;
 
 typedef enum SpawnType : uint8_t {
@@ -128,6 +129,13 @@ typedef struct AnimatedSpriteData {
     float frameTime;
     bool flipX;
 } AnimatedSpriteData;
+
+typedef struct AnimatedStaticSpriteData {
+    uint8_t spriteID;
+    float animationDuration;
+    float animationTimer;
+    bool flipX;
+} AnimatedStaticSpriteData;
 
 typedef struct Character{
     float health;
@@ -194,6 +202,7 @@ typedef struct Entity{
     {
         SpriteData sprite;
         AnimatedSpriteData animatedSprite;
+        AnimatedStaticSpriteData animatedStaticSprite;
     };
 } Entity;
 

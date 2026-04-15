@@ -212,9 +212,11 @@ Entity Enemy_GenerateEnemy(EnemyType enemyType)
     enemy.scale = (Vector2){2.0f, 2.0f};
     enemy.radius = 30.0f;
 
-    enemy.visualType = VISUAL_TYPE_SPRITE;
-    enemy.sprite.spriteID = ASSET_SPRITE_TYPE_BAT;
-    enemy.sprite.flipX = false;
+    enemy.visualType = VISUAL_TYPE_ANIMATED_STATIC_SPRITE;
+    enemy.animatedStaticSprite.spriteID = ASSET_SPRITE_TYPE_BAT;
+    enemy.animatedStaticSprite.flipX = false;
+    enemy.animatedStaticSprite.animationDuration = 1.0f;
+    enemy.animatedStaticSprite.animationTimer = (float)GetRandomValue(0, 1000) / 1000.0f;
 
     enemy.enemyCharacter.enemyType = enemyType;
 
@@ -266,10 +268,13 @@ void Enemy_ProcessAllMovement(float deltaTime)
         current->velocity.y = direction.y * current->enemyCharacter.speed;
 
         // Flip sprite based on movement direction
-        if (current->velocity.x > 0)
-            current->sprite.flipX = false;
-        else if (current->velocity.x < 0)
-            current->sprite.flipX = true;
+        if (current->velocity.x > 0) {
+            if (current->visualType == VISUAL_TYPE_ANIMATED_STATIC_SPRITE) current->animatedStaticSprite.flipX = false;
+            else current->sprite.flipX = false;
+        } else if (current->velocity.x < 0) {
+            if (current->visualType == VISUAL_TYPE_ANIMATED_STATIC_SPRITE) current->animatedStaticSprite.flipX = true;
+            else current->sprite.flipX = true;
+        }
         }
 
         current->position.x += current->velocity.x * deltaTime;
@@ -320,6 +325,14 @@ void Enemy_ProcessAllMovement(float deltaTime)
         // Tick down enemy flash timer
         if (current->enemyCharacter.flashTimer > 0) {
             current->enemyCharacter.flashTimer -= deltaTime;
+        }
+
+        // Update Static Sprite Animation
+        if (current->visualType == VISUAL_TYPE_ANIMATED_STATIC_SPRITE) {
+            current->animatedStaticSprite.animationTimer += deltaTime;
+            if (current->animatedStaticSprite.animationTimer >= current->animatedStaticSprite.animationDuration) {
+                current->animatedStaticSprite.animationTimer -= current->animatedStaticSprite.animationDuration;
+            }
         }
     }
 }
@@ -804,10 +817,14 @@ void Render_DrawEntity(Entity *entity)
     if (!entity || !entity->bIsActive)
         return;
 
-    Texture2D texture =
-        Assets_GetSprite(entity->visualType == VISUAL_TYPE_ANIMATED_SPRITE
-                            ? entity->animatedSprite.spriteID
-                            : entity->sprite.spriteID);
+    Texture2D texture;
+    if (entity->visualType == VISUAL_TYPE_ANIMATED_SPRITE) {
+        texture = Assets_GetSprite(entity->animatedSprite.spriteID);
+    } else if (entity->visualType == VISUAL_TYPE_ANIMATED_STATIC_SPRITE) {
+        texture = Assets_GetSprite(entity->animatedStaticSprite.spriteID);
+    } else {
+        texture = Assets_GetSprite(entity->sprite.spriteID);
+    }
 
     // Choose color tint
     Color tint = WHITE;
@@ -841,15 +858,24 @@ void Render_DrawEntity(Entity *entity)
         origin = (Vector2){(frameWidth * entity->scale.x) / 2.0f,
                         (float)texture.height * entity->scale.y};
     } else {
+        bool flipX = (entity->visualType == VISUAL_TYPE_ANIMATED_STATIC_SPRITE) 
+                     ? entity->animatedStaticSprite.flipX 
+                     : entity->sprite.flipX;
+        
         source = (Rectangle){0, 0,
-                            entity->sprite.flipX ? -(float)texture.width
-                                                : (float)texture.width,
+                            flipX ? -(float)texture.width : (float)texture.width,
                             (float)texture.height};
         origin = (Vector2){((float)texture.width * entity->scale.x) / 2.0f,
                         (float)texture.height * entity->scale.y};
     }
 
-    Rectangle dest = {entity->position.x, entity->position.y,
+    float bounceOffset = 0.0f;
+    if (entity->visualType == VISUAL_TYPE_ANIMATED_STATIC_SPRITE) {
+        float t = entity->animatedStaticSprite.animationTimer / entity->animatedStaticSprite.animationDuration;
+        bounceOffset = sinf(t * 2.0f * PI) * 10.0f; // 10 pixel amplitude
+    }
+
+    Rectangle dest = {entity->position.x, entity->position.y + bounceOffset,
                         (source.width < 0 ? -source.width : source.width) *
                             entity->scale.x,
                         (float)texture.height * entity->scale.y};
