@@ -337,6 +337,7 @@ typedef struct GlobalVariables{
     float gameTimer;
     uint16_t deathAuraIndex;
     uint16_t nextEntityId;
+    bool bShowInventory;
 } GlobalVariables;
 // ~End of Structs
 
@@ -377,6 +378,7 @@ void Enemy_ProcessAllMovement(float deltaTime);
 void HUD_Init();
 void HUD_UpdateData();
 void HUD_Draw();
+void HUD_DrawInventory();
 //~ End of HUD Implementation
 
 //~ Begin of Player Implementation
@@ -401,6 +403,7 @@ void Projectile_ProcessAllMovement(float deltaTime);
 void Relic_GenerateRelicDefinition();
 void Relic_AddRelic(RelicType relicType); //This function also levels up relics
 void Relic_ApplyEffects();
+const char* Relic_GetRelicName(RelicType relicType);
 //~ End of Relic Implementation
 
 //~ Begin of Render Implementation
@@ -418,6 +421,7 @@ void Spawner_ProcessSpawnLogic(float deltaTime);
 void Weapon_GenerateWeaponLevels();
 bool Weapon_AddWeapon(WeaponType weaponType); //This function also levels up weapons
 void Weapon_ProcessAttack(float deltaTime);
+const char* Weapon_GetWeaponName(WeaponType weaponType);
 //~ End of Weapon Implementation
 
 //~ Begin of Global Implementation

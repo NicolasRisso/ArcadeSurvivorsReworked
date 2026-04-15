@@ -63,7 +63,32 @@ void Core_InitGame()
 }
 void Core_ProcessInput()
 {
+    Entity* player = Global_GetPlayer();
+    if (!player || !player->bIsActive || player->character.bIsDead) {
+        globalVariables.bShowInventory = false;
+        return;
+    }
 
+    Vector2 direction = {0, 0};
+
+    if (IsKeyDown(KEY_W) || IsKeyDown(KEY_UP))
+        direction.y -= 1.0f;
+    if (IsKeyDown(KEY_S) || IsKeyDown(KEY_DOWN))
+        direction.y += 1.0f;
+    if (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT))
+        direction.x -= 1.0f;
+    if (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT))
+        direction.x += 1.0f;
+
+    if (Vector2Length(direction) > 0) {
+        direction = Vector2Normalize(direction);
+        player->velocity.x = direction.x * player->character.speed;
+        player->velocity.y = direction.y * player->character.speed;
+    } else {
+        player->velocity = (Vector2){0, 0};
+    }
+
+    globalVariables.bShowInventory = IsKeyDown(KEY_TAB);
 }
 void Core_UpdateGame(float deltaTime) {
     Player_ProcessMovement(Global_GetPlayer(), deltaTime);
@@ -86,6 +111,7 @@ void Core_RenderGraphics() {
     EndMode2D();
 
     HUD_Draw();
+    if (globalVariables.bShowInventory) HUD_DrawInventory();
 
     EndDrawing();
 }
@@ -395,6 +421,58 @@ void HUD_Draw()
     DrawText(timerText, timerX + 2, timerY + 2, 40, BLACK);
     DrawText(timerText, timerX, timerY, 40, WHITE);
 }
+void HUD_DrawInventory()
+{
+    DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, ColorAlpha(BLACK, 0.85f));
+
+    int padding = 150;
+    int colWidth = (SCREEN_WIDTH - (padding * 2)) / 2;
+    int startY = 200;
+
+    // Left Column: Equipment
+    int leftX = padding;
+    DrawText("EQUIPMENT", leftX, startY - 60, 45, GOLD);
+    
+    int currentY = startY;
+    DrawText("WEAPONS", leftX, currentY, 30, GRAY);
+    currentY += 45;
+
+    for (int i = 0; i < MAX_WEAPON_CAPACITY; i++) {
+        WeaponData* w = &globalVariables.inventory.weaponDatas[i];
+        if (w->level > 0) {
+            DrawText(TextFormat("Lv.%d %s", w->level, Weapon_GetWeaponName(w->weaponType)), leftX + 20, currentY, 32, WHITE);
+            currentY += 40;
+        }
+    }
+
+    currentY += 30;
+    DrawText("RELICS", leftX, currentY, 30, GRAY);
+    currentY += 45;
+
+    for (int i = 0; i < MAX_RELIC_CAPACITY; i++) {
+        RelicData* r = &globalVariables.inventory.relicDatas[i];
+        if (r->level > 0) {
+            DrawText(TextFormat("Lv.%d %s", r->level, Relic_GetRelicName(r->relicType)), leftX + 20, currentY, 32, WHITE);
+            currentY += 40;
+        }
+    }
+
+    // Right Column: Player Stats
+    int rightX = padding + colWidth;
+    DrawText("PLAYER STATS", rightX, startY - 60, 45, GOLD);
+    
+    currentY = startY;
+    PlayerStats* s = &globalVariables.playerStats;
+    Entity* player = Global_GetPlayer();
+
+    DrawText(TextFormat("Health: %.0f / %.0f", player->character.health, player->character.maxHealth), rightX, currentY, 32, WHITE); currentY += 45;
+    DrawText(TextFormat("Damage: %.0f%%", s->damageMultiplier * 100.0f), rightX, currentY, 32, WHITE); currentY += 45;
+    DrawText(TextFormat("Attack Speed: %.0f%%", s->attackSpeedMultiplier * 100.0f), rightX, currentY, 32, WHITE); currentY += 45;
+    DrawText(TextFormat("Move Speed: %.0f%%", s->movementSpeedMultiplier * 100.0f), rightX, currentY, 32, WHITE); currentY += 45;
+    DrawText(TextFormat("Area Size: %.0f%%", s->sizeMultiplier * 100.0f), rightX, currentY, 32, WHITE); currentY += 45;
+    DrawText(TextFormat("Life Steal: %.0f%%", s->lifeStealMultiplier * 100.0f), rightX, currentY, 32, WHITE); currentY += 45;
+    DrawText(TextFormat("XP Gain: %.0f%%", s->xpMultiplier * 100.0f), rightX, currentY, 32, WHITE); currentY += 45;
+}
 //~ End of HUD Implementation
 
 // ~Begin of Player Implementation
@@ -455,26 +533,7 @@ void Player_ProcessMovement(Entity *player, float deltaTime)
         return;
     }
 
-    Vector2 direction = {0, 0};
-
-    if (IsKeyDown(KEY_W) || IsKeyDown(KEY_UP))
-        direction.y -= 1.0f;
-    if (IsKeyDown(KEY_S) || IsKeyDown(KEY_DOWN))
-        direction.y += 1.0f;
-    if (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT))
-        direction.x -= 1.0f;
-    if (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT))
-        direction.x += 1.0f;
-
-    if (Vector2Length(direction) > 0) {
-        direction = Vector2Normalize(direction);
-        player->velocity.x = direction.x * player->character.speed;
-        player->velocity.y = direction.y * player->character.speed;
-    } else {
-        player->velocity = (Vector2){0, 0};
-    }
-
-    // Apply Physics
+    // Applying velocity set in Core_ProcessInput
     player->position.x += player->velocity.x * deltaTime;
     player->position.y += player->velocity.y * deltaTime;
 
@@ -791,6 +850,19 @@ void Relic_AddRelic(RelicType relicType) {
             Relic_ApplyEffects();
             return;
         }
+    }
+}
+const char* Relic_GetRelicName(RelicType relicType)
+{
+    switch (relicType) {
+        case RELIC_TYPE_HEALTH: return "Health Relic";
+        case RELIC_TYPE_DAMAGE: return "Damage Relic";
+        case RELIC_TYPE_ATTACK_SPEED: return "Attack Speed Relic";
+        case RELIC_TYPE_MOVEMENT_SPEED: return "Move Speed Relic";
+        case RELIC_TYPE_SIZE: return "Size Relic";
+        case RELIC_TYPE_LIFE_STEAL: return "Life Steal Relic";
+        case RELIC_TYPE_XP: return "XP Relic";
+        default: return "Unknown Relic";
     }
 }
 //~ End of Relic Implementation
@@ -1398,6 +1470,17 @@ void Weapon_ProcessAttack(float deltaTime)
                 } break;
             }
         }
+    }
+}
+const char* Weapon_GetWeaponName(WeaponType weaponType)
+{
+    switch (weaponType) {
+        case WEAPON_TYPE_CRYSTAL_WAND: return "Crystal Staff";
+        case WEAPON_TYPE_FIREBALL_RING: return "Fireball Ring";
+        case WEAPON_TYPE_BOMB_SHOES: return "Bomb Shoes";
+        case WEAPON_TYPE_NATURE_SPIKES: return "Nature Spikes";
+        case WEAPON_TYPE_DEATH_AURA: return "Death Aura";
+        default: return "Unknown Weapon";
     }
 }
 // ~End of Weapon Implementation
