@@ -11,6 +11,11 @@
 
 #define MAX_SPAWN_DEFINITION 7
 
+#define MAX_WEAPON_CAPACITY 4
+#define MAX_WEAPON_LEVEL 15
+#define MAX_RELIC_CAPACITY 4
+#define MAX_RELIC_LEVEL 15
+
 #define MAP_SIZE 10000
 #define MAP_HALF_SIZE 5000
 
@@ -42,6 +47,25 @@ typedef enum ProjectileType : uint8_t {
     PROJECTILE_TYPE_BOMB = 3,
     PROJECTILE_TYPE_NATURE_SPIKE = 4,
 } ProjectileType;
+
+typedef enum WeaponType : uint8_t {
+    WEAPON_TYPE_CRYSTAL_WAND = 0,
+    WEAPON_TYPE_FIREBALL_RING = 1,
+    WEAPON_TYPE_BOMB_SHOES = 2,
+    WEAPON_TYPE_NATURE_SPIKES = 3,
+    WEAPON_TYPE_DEATH_AURA = 4
+} WeaponType;
+
+typedef enum RelicType : uint8_t {
+    RELIC_TYPE_HEALTH = 0,
+    RELIC_TYPE_DAMAGE = 1,
+    RELIC_TYPE_ATTACK_SPEED = 2,
+    RELIC_TYPE_MOVEMENT_SPEED = 3,
+    RELIC_TYPE_SIZE = 4,
+    RELIC_TYPE_LIFE_STEAL = 5,
+    RELIC_TYPE_XP = 6,
+    RELIC_TYPE_COUNT = 7
+} RelicType;
 
 typedef enum EnemyType : uint8_t {
     ENEMY_TYPE_NORMAL = 0,
@@ -168,6 +192,82 @@ typedef struct SpawnerData{
     SpawnDefinition spawnsDefinitions[MAX_SPAWN_DEFINITION];
 } SpawnerData;
 
+typedef struct WeaponData{
+    WeaponType weaponType;
+    uint8_t level;
+} WeaponData;
+
+typedef struct WeaponCrystalDefinition {
+    uint8_t penetration;
+} WeaponCrystalDefinition;
+
+typedef struct WeaponFireballDefinition {
+    float explosionRadius;
+    float explosionDamageMultipler;
+} WeaponFireballDefinition;
+
+typedef struct WeaponBombShoesDefinition {
+    float explosionRadius;
+    float delayToExplode;
+} WeaponBombShoesDefinition;
+
+typedef struct WeaponNatureSpikesDefinition {
+    float rangeToSpawn;
+    float spikeDuration;
+    float spikeMaxDamage;
+} WeaponNatureSpikesDefinition;
+
+typedef struct WeaponDeathAuraDefinition {
+    float size;
+} WeaponDeathAuraDefinition;
+
+typedef struct WeaponDefinition {
+    float damage;
+    float delayBetweenAttacks;
+    uint8_t projectileAmount;
+    union
+    {
+        WeaponCrystalDefinition;
+        WeaponFireballDefinition;
+        WeaponBombShoesDefinition;
+        WeaponNatureSpikesDefinition;
+        WeaponDeathAuraDefinition;
+    };
+} WeaponDefinition;
+
+typedef struct WeaponData {
+    uint8_t level;
+    WeaponType weaponType;
+} WeaponData;
+
+typedef struct WeaponLevelsDefinition {
+    WeaponDefinition crystalShard[MAX_WEAPON_LEVEL];
+    WeaponDefinition fireballRing[MAX_WEAPON_LEVEL];
+    WeaponDefinition bombShoes[MAX_WEAPON_LEVEL];
+    WeaponDefinition natureSpikes[MAX_WEAPON_LEVEL];
+    WeaponDefinition deathAura[MAX_WEAPON_LEVEL];
+} WeaponLevelsDefinition;
+
+typedef struct RelicDefinition {
+    float multiplier;
+} RelicDefinition;
+
+typedef struct RelicData {
+    uint8_t level;
+    RelicType relicType;
+    RelicDefinition RelicDefinition;
+} RelicData;
+
+typedef struct Inventory {
+    WeaponData weaponDatas[MAX_WEAPON_CAPACITY];
+    RelicData relicDatas[MAX_RELIC_CAPACITY];
+} Inventory;
+
+typedef struct InventoryDefinitions {
+    WeaponLevelsDefinition weaponLevelsDefinition;
+    RelicDefinition RelicDefinitions[RELIC_TYPE_COUNT];
+} InventoryDefinitions;
+
 typedef struct PlayerStats{
     float currentXP;
     float nextLevelXP;
@@ -193,6 +293,9 @@ typedef struct GlobalVariables{
 
     uint16_t playerIndex;
 
+    Inventory inventory;
+    InventoryDefinitions InventoryDefinitions;
+
     SpawnerData spawnerData;
     float gameTimer;
 } GlobalVariables;
@@ -204,7 +307,7 @@ extern GlobalVariables globalVariables;
 // The game main loop
 int main(void);
 
-// ~Begin of Core Implementation
+//~ Begin of Core Implementation
 void Core_InitGame();
 void Core_ProcessInput();
 void Core_UpdateGame(float deltaTime);
@@ -212,15 +315,15 @@ void Core_RenderGraphics();
 void Core_CloseGame();
 
 int Core_IsGameReadyToClose();
-// ~End of Core Implementation
+//~ End of Core Implementation
 
-// ~Begin of Assets Implementation
+//~ Begin of Assets Implementation
 void Assets_Init();
 void Assets_Unload();
 Texture2D Assets_GetSprite(AssetSpriteType spriteID);
 Sound Assets_GetSound(AssetSoundType soundID);
 Music Assets_GetMusic(AssetMusicType musicID);
-// ~End of Assets Implementation
+//~ End of Assets Implementation
 
 //~ Begin of Collision Implementation
 void Collision_MapBorder(Entity* entity);
@@ -237,24 +340,35 @@ void HUD_UpdateData();
 void HUD_Draw();
 //~ End of HUD Implementation
 
-// ~Begin of Player Implementation
+//~ Begin of Player Implementation
 Camera2D Player_GenerateCamera();
 Entity Player_GeneratePlayer();
 PlayerStats Player_GeneratePlayerStats();
 void Player_ProcessMovement(Entity* player, float deltaTime);
 void Player_AnimateMovement(Entity* player, float deltaTime);
-// ~End of Player Implementation
+//~ End of Player Implementation
 
-// ~Begin of Render Implementation
+//~ Begin of Relic Implementation
+void Relic_GenerateRelicDefinition();
+void Relic_AddRelic(RelicType relicType); //This function also levels up relics
+//~ End of Relic Implementation
+
+//~ Begin of Render Implementation
 void Render_DrawMap();
 void Render_DrawAllEntitiesSorted();
 void Render_DrawEntity(Entity* entity);
-// ~End of Render Implementation
+//~ End of Render Implementation
 
-// ~Begin of Spawner Implementation
+//~ Begin of Spawner Implementation
 SpawnerData Spawner_GenerateSpawnerData();
 void Spawner_ProcessSpawnLogic(float deltaTime);
-// ~End of Spawner Implementation
+//~ End of Spawner Implementation
+
+//~ Begin of Weapon Implementation
+void Weapon_GenerateWeaponLevels();
+bool Weapon_AddWeapon(WeaponType weaponType); //This function also levels up weapons
+void Weapon_ProcessAttack(float deltaTime);
+//~ End of Weapon Implementation
 
 //~ Begin of Global Implementation
 void Global_UpdateGameTimer(float deltaTime);
