@@ -1646,7 +1646,7 @@ SpawnerData Spawner_GenerateSpawnerData()
                             .amountToSpawnRange = {1, 1},
                             .distanceToSpawnRange = {800, 1000},
                             .chanceToSpawn = 100, // Weighted value
-                            .Difficulty = 1.0f};
+                            .Difficulty = 0.0f};
 
     // 1: Fast Bat Cluster (Medium)
     data.spawnsDefinitions[1] =
@@ -1655,7 +1655,7 @@ SpawnerData Spawner_GenerateSpawnerData()
                             .amountToSpawnRange = {5, 8},
                             .distanceToSpawnRange = {900, 1100},
                             .chanceToSpawn = 30,
-                            .Difficulty = 2.0f};
+                            .Difficulty = 0.0f};
 
     // 2: Normal Bat Around (Medium)
     data.spawnsDefinitions[2] =
@@ -1664,7 +1664,7 @@ SpawnerData Spawner_GenerateSpawnerData()
                             .amountToSpawnRange = {10, 15},
                             .distanceToSpawnRange = {1000, 1200},
                             .chanceToSpawn = 20,
-                            .Difficulty = 3.0f};
+                            .Difficulty = 0.0f};
 
     // 3: Tank Bat Single (Rare)
     data.spawnsDefinitions[3] =
@@ -1673,7 +1673,7 @@ SpawnerData Spawner_GenerateSpawnerData()
                             .amountToSpawnRange = {1, 1},
                             .distanceToSpawnRange = {1100, 1300},
                             .chanceToSpawn = 10,
-                            .Difficulty = 5.0f};
+                            .Difficulty = 15.0f};
 
     // 4: Fast Bat Line (Medium)
     data.spawnsDefinitions[4] =
@@ -1682,25 +1682,90 @@ SpawnerData Spawner_GenerateSpawnerData()
                             .amountToSpawnRange = {5, 10},
                             .distanceToSpawnRange = {900, 1100},
                             .chanceToSpawn = 25,
-                            .Difficulty = 4.0f};
+                            .Difficulty = 0.0f};
 
     // 5: Normal Bat Cluster (Common)
-    data.spawnsDefinitions[1] =
+    data.spawnsDefinitions[5] =
         (SpawnDefinition){.enemyType = ENEMY_TYPE_NORMAL,
                             .spawnType = SPAWN_TYPE_CLUSTER,
                             .amountToSpawnRange = {11, 18},
                             .distanceToSpawnRange = {900, 1100},
                             .chanceToSpawn = 35,
-                            .Difficulty = 2.0f};
+                            .Difficulty = 0.0f};
 
     // 6: Normal Bat Line (Common)
-    data.spawnsDefinitions[1] =
+    data.spawnsDefinitions[6] =
         (SpawnDefinition){.enemyType = ENEMY_TYPE_NORMAL,
                             .spawnType = SPAWN_TYPE_LINE,
                             .amountToSpawnRange = {12, 19},
                             .distanceToSpawnRange = {900, 1100},
                             .chanceToSpawn = 35,
-                            .Difficulty = 2.0f};
+                            .Difficulty = 0.0f};
+
+    // --- NEW SELECTIONS (Difficulty 7-13) ---
+
+    // 7: Fast Cluster (Aggressive) - Difficulty 5
+    data.spawnsDefinitions[7] =
+        (SpawnDefinition){.enemyType = ENEMY_TYPE_FAST,
+                            .spawnType = SPAWN_TYPE_CLUSTER,
+                            .amountToSpawnRange = {15, 25},
+                            .distanceToSpawnRange = {800, 1000},
+                            .chanceToSpawn = 40,
+                            .Difficulty = 5.0f};
+
+    // 8: Normal + Fast Mix (Around) - Difficulty 10
+    data.spawnsDefinitions[8] =
+        (SpawnDefinition){.enemyType = ENEMY_TYPE_FAST, // Selection logic picks one type for the whole spawn
+                            .spawnType = SPAWN_TYPE_AROUND,
+                            .amountToSpawnRange = {20, 30},
+                            .distanceToSpawnRange = {1000, 1200},
+                            .chanceToSpawn = 30,
+                            .Difficulty = 10.0f};
+
+    // 9: Tank Pair - Difficulty 25
+    data.spawnsDefinitions[9] =
+        (SpawnDefinition){.enemyType = ENEMY_TYPE_TANK,
+                            .spawnType = SPAWN_TYPE_CLUSTER,
+                            .amountToSpawnRange = {2, 3},
+                            .distanceToSpawnRange = {1100, 1300},
+                            .chanceToSpawn = 15,
+                            .Difficulty = 25.0f};
+
+    // 10: Fast Circle (Surrounding) - Difficulty 20
+    data.spawnsDefinitions[10] =
+        (SpawnDefinition){.enemyType = ENEMY_TYPE_FAST,
+                            .spawnType = SPAWN_TYPE_AROUND,
+                            .amountToSpawnRange = {30, 45},
+                            .distanceToSpawnRange = {700, 900},
+                            .chanceToSpawn = 25,
+                            .Difficulty = 20.0f};
+
+    // 11: Normal Giant Line - Difficulty 35
+    data.spawnsDefinitions[11] =
+        (SpawnDefinition){.enemyType = ENEMY_TYPE_NORMAL,
+                            .spawnType = SPAWN_TYPE_LINE,
+                            .amountToSpawnRange = {40, 60},
+                            .distanceToSpawnRange = {1000, 1200},
+                            .chanceToSpawn = 20,
+                            .Difficulty = 35.0f};
+
+    // 12: Tank Cluster (Dangerous) - Difficulty 45
+    data.spawnsDefinitions[12] =
+        (SpawnDefinition){.enemyType = ENEMY_TYPE_TANK,
+                            .spawnType = SPAWN_TYPE_CLUSTER,
+                            .amountToSpawnRange = {5, 8},
+                            .distanceToSpawnRange = {1200, 1400},
+                            .chanceToSpawn = 10,
+                            .Difficulty = 45.0f};
+
+    // 13: Fast Overlap (Hyper Cluster) - Difficulty 60
+    data.spawnsDefinitions[13] =
+        (SpawnDefinition){.enemyType = ENEMY_TYPE_FAST,
+                            .spawnType = SPAWN_TYPE_CLUSTER,
+                            .amountToSpawnRange = {50, 80},
+                            .distanceToSpawnRange = {900, 1100},
+                            .chanceToSpawn = 30,
+                            .Difficulty = 60.0f};
 
     return data;
 }
@@ -1708,6 +1773,9 @@ void Spawner_ProcessSpawnLogic(float deltaTime)
 {
     Entity* player = Global_GetPlayer();
     if (player->character.bIsDead) return;
+
+    // Update Difficulty: +10 per minute
+    globalVariables.spawnerData.currentDifficulty = (globalVariables.gameTimer / 60.0f) * 10.0f;
 
     globalVariables.spawnerData.spawnTimer -= deltaTime;
     if (globalVariables.spawnerData.spawnTimer > 0)
@@ -1729,28 +1797,35 @@ void Spawner_ProcessSpawnLogic(float deltaTime)
     // Reset Timer
     globalVariables.spawnerData.spawnTimer = actualDelay;
 
-    // Phase 1: Weighted Selection
+    // Phase 1: Weighted Selection (Filtering by Difficulty)
     int totalWeight = 0;
-    for (int i = 0; i < MAX_SPAWN_DEFINITION; i++)
-        totalWeight +=
-            globalVariables.spawnerData.spawnsDefinitions[i].chanceToSpawn;
+    float currentDiff = globalVariables.spawnerData.currentDifficulty;
+
+    for (int i = 0; i < MAX_SPAWN_DEFINITION; i++) {
+        if (currentDiff >= globalVariables.spawnerData.spawnsDefinitions[i].Difficulty) {
+            totalWeight += globalVariables.spawnerData.spawnsDefinitions[i].chanceToSpawn;
+        }
+    }
 
     if (totalWeight <= 0)
         return;
 
     int roll = GetRandomValue(0, totalWeight - 1);
-    int currentWeight = 0;
-    SpawnDefinition *selectedDef =
-        &globalVariables.spawnerData.spawnsDefinitions[0];
+    int cumulativeWeight = 0;
+    SpawnDefinition *selectedDef = NULL;
 
     for (int i = 0; i < MAX_SPAWN_DEFINITION; i++) {
-        currentWeight +=
-            globalVariables.spawnerData.spawnsDefinitions[i].chanceToSpawn;
-        if (roll < currentWeight) {
-        selectedDef = &globalVariables.spawnerData.spawnsDefinitions[i];
-        break;
+        if (currentDiff < globalVariables.spawnerData.spawnsDefinitions[i].Difficulty) 
+            continue;
+
+        cumulativeWeight += globalVariables.spawnerData.spawnsDefinitions[i].chanceToSpawn;
+        if (roll < cumulativeWeight) {
+            selectedDef = &globalVariables.spawnerData.spawnsDefinitions[i];
+            break;
         }
     }
+
+    if (!selectedDef) return;
 
     // Phase 2: Execution
     uint16_t amount =

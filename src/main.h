@@ -9,7 +9,7 @@
 
 #define MAX_ENTITIES_AMOUNT 20000
 
-#define MAX_SPAWN_DEFINITION 7
+#define MAX_SPAWN_DEFINITION 14
 
 #define MAX_WEAPON_CAPACITY 4
 #define MAX_WEAPON_LEVEL 15
@@ -244,6 +244,7 @@ typedef struct SpawnDefinition{
 typedef struct SpawnerData{
     float delayBetweenSpawns;
     float spawnTimer;
+    float currentDifficulty;
     SpawnDefinition spawnsDefinitions[MAX_SPAWN_DEFINITION];
 } SpawnerData;
 
