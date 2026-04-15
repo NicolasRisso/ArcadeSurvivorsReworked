@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <time.h>
 #include <math.h>
+#include <string.h>
 
 //~ Begin of Assets Macros
 #define DEFINE_ASSET_GETTER(Type, Name, Array, Count, IDType)                  \
@@ -70,8 +71,11 @@ void Core_ProcessInput()
         return;
     }
 
+    if (globalVariables.levelUpState.bShowLevelUp) return;
+
     Vector2 direction = {0, 0};
 
+    // Keyboard Movement
     if (IsKeyDown(KEY_W) || IsKeyDown(KEY_UP))
         direction.y -= 1.0f;
     if (IsKeyDown(KEY_S) || IsKeyDown(KEY_DOWN))
@@ -81,6 +85,15 @@ void Core_ProcessInput()
     if (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT))
         direction.x += 1.0f;
 
+    // Gamepad Movement (Axis)
+    if (IsGamepadAvailable(0)) {
+        float ax = GetGamepadAxisMovement(0, GAMEPAD_AXIS_LEFT_X);
+        float ay = GetGamepadAxisMovement(0, GAMEPAD_AXIS_LEFT_Y);
+        float deadzone = 0.2f;
+        if (fabsf(ax) > deadzone) direction.x = ax;
+        if (fabsf(ay) > deadzone) direction.y = ay;
+    }
+
     if (Vector2Length(direction) > 0) {
         direction = Vector2Normalize(direction);
         player->velocity.x = direction.x * player->character.speed;
@@ -89,9 +102,17 @@ void Core_ProcessInput()
         player->velocity = (Vector2){0, 0};
     }
 
-    globalVariables.bShowInventory = IsKeyDown(KEY_TAB);
+    // Inventory Toggle
+    if (IsKeyPressed(KEY_TAB)) {
+        globalVariables.bShowInventory = !globalVariables.bShowInventory;
+    }
+    if (IsGamepadAvailable(0) && IsGamepadButtonPressed(0, GAMEPAD_BUTTON_RIGHT_FACE_UP)) {
+        globalVariables.bShowInventory = !globalVariables.bShowInventory;
+    }
 }
+
 void Core_UpdateGame(float deltaTime) {
+    if (globalVariables.levelUpState.bShowLevelUp) return;
     Player_ProcessMovement(Global_GetPlayer(), deltaTime);
     Enemy_ProcessAllMovement(deltaTime);
     Spawner_ProcessSpawnLogic(deltaTime);
@@ -114,9 +135,11 @@ void Core_RenderGraphics() {
 
     HUD_Draw();
     if (globalVariables.bShowInventory) HUD_DrawInventory();
+    if (globalVariables.levelUpState.bShowLevelUp) HUD_DrawLevelUp();
 
     EndDrawing();
 }
+
 void Core_CloseGame() {
     Assets_Unload();
     CloseAudioDevice();
@@ -381,8 +404,16 @@ void HUD_Draw()
 {
     // 1. XP Bar (Top of screen)
     float xpPercentage = globalVariables.playerStats.currentXP / globalVariables.playerStats.nextLevelXP;
+    
+    Color xpColor = BLUE;
+    if (globalVariables.levelUpState.bShowLevelUp) {
+        xpPercentage = 1.0f;
+        float hue = (float)((int)(GetTime() * 300) % 360);
+        xpColor = ColorFromHSV(hue, 0.8f, 0.9f);
+    }
+
     DrawRectangle(0, 0, SCREEN_WIDTH, 30, DARKGRAY);
-    DrawRectangle(0, 0, (int)(SCREEN_WIDTH * xpPercentage), 30, BLUE);
+    DrawRectangle(0, 0, (int)(SCREEN_WIDTH * xpPercentage), 30, xpColor);
 
     const char *levelText = TextFormat("LEVEL %d", globalVariables.playerStats.level);
     int levelTextWidth = MeasureText(levelText, 20);
@@ -398,15 +429,12 @@ void HUD_Draw()
     float hpPercentage = player->character.health / player->character.maxHealth;
 
     DrawRectangle(padding, hpY, hpBarWidth, hpBarHeight, DARKGRAY);
-    DrawRectangle(padding, hpY, (int)(hpBarWidth * hpPercentage), hpBarHeight,
-                    RED);
+    DrawRectangle(padding, hpY, (int)(hpBarWidth * hpPercentage), hpBarHeight, RED);
     DrawRectangleLines(padding, hpY, hpBarWidth, hpBarHeight, BLACK);
 
-    const char *hpText = TextFormat("%.0f / %.0f", player->character.health,
-                                    player->character.maxHealth);
+    const char *hpText = TextFormat("%.0f / %.0f", player->character.health, player->character.maxHealth);
     int hpTextWidth = MeasureText(hpText, 20);
-    DrawText(hpText, padding + (hpBarWidth / 2) - (hpTextWidth / 2), hpY + 7, 20,
-            WHITE);
+    DrawText(hpText, padding + (hpBarWidth / 2) - (hpTextWidth / 2), hpY + 7, 20, WHITE);
 
     // 3. Timer (Right corner)
     int minutes = (int)globalVariables.gameTimer / 60;
@@ -423,6 +451,7 @@ void HUD_Draw()
     DrawText(timerText, timerX + 2, timerY + 2, 40, BLACK);
     DrawText(timerText, timerX, timerY, 40, WHITE);
 }
+
 void HUD_DrawInventory()
 {
     DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, ColorAlpha(BLACK, 0.85f));
@@ -475,6 +504,187 @@ void HUD_DrawInventory()
     DrawText(TextFormat("Life Steal: %.0f%%", s->lifeStealMultiplier * 100.0f), rightX, currentY, 32, WHITE); currentY += 45;
     DrawText(TextFormat("XP Gain: %.0f%%", s->xpMultiplier * 100.0f), rightX, currentY, 32, WHITE); currentY += 45;
 }
+
+void HUD_DrawLevelUp()
+{
+    // Brain Part: Handle Input
+    bool selected = false;
+    int choice = -1;
+
+    if (IsKeyPressed(KEY_ONE)) { choice = 0; selected = true; }
+    if (IsKeyPressed(KEY_TWO)) { choice = 1; selected = true; }
+    if (IsKeyPressed(KEY_THREE)) { choice = 2; selected = true; }
+
+    if (IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_A) || IsGamepadButtonPressed(0, GAMEPAD_BUTTON_LEFT_FACE_LEFT)) globalVariables.levelUpState.selectedIndex--;
+    if (IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_D) || IsGamepadButtonPressed(0, GAMEPAD_BUTTON_LEFT_FACE_RIGHT)) globalVariables.levelUpState.selectedIndex++;
+    
+    // Analog stick selection (single press feel)
+    static float axisTimer = 0.0f;
+    if (IsGamepadAvailable(0)) {
+        float ax = GetGamepadAxisMovement(0, GAMEPAD_AXIS_LEFT_X);
+        if (fabsf(ax) > 0.5f && axisTimer <= 0) {
+            if (ax > 0) globalVariables.levelUpState.selectedIndex++;
+            else globalVariables.levelUpState.selectedIndex--;
+            axisTimer = 0.2f;
+        }
+        if (axisTimer > 0) axisTimer -= GetFrameTime();
+    }
+
+    if (globalVariables.levelUpState.selectedIndex < 0) globalVariables.levelUpState.selectedIndex = 2;
+    if (globalVariables.levelUpState.selectedIndex > 2) globalVariables.levelUpState.selectedIndex = 0;
+
+    if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE) || IsGamepadButtonPressed(0, GAMEPAD_BUTTON_RIGHT_FACE_DOWN)) {
+        choice = globalVariables.levelUpState.selectedIndex;
+        selected = true;
+    }
+
+    if (selected && choice >= 0 && choice < 3) {
+        UpgradeOption* opt = &globalVariables.levelUpState.options[choice];
+        if (opt->type == UPGRADE_TYPE_WEAPON) {
+            Weapon_AddWeapon(opt->weapon);
+        } else if (opt->type == UPGRADE_TYPE_RELIC) {
+            Relic_AddRelic(opt->relic);
+        }
+
+        globalVariables.levelUpState.pendingCount--;
+        if (globalVariables.levelUpState.pendingCount > 0) {
+            HUD_GenerateLevelUpOptions();
+        } else {
+            globalVariables.levelUpState.bShowLevelUp = false;
+        }
+        return;
+    }
+
+    // Body Part: Draw
+    DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, ColorAlpha(BLACK, 0.85f));
+
+    DrawText("LEVEL UP", SCREEN_WIDTH/2 - MeasureText("LEVEL UP", 80)/2, 100, 80, GOLD);
+
+    int cardWidth = 450;
+    int cardHeight = 600;
+    int spacing = 60;
+    int totalWidth = (cardWidth * 3) + (spacing * 2);
+    int startX = (SCREEN_WIDTH - totalWidth) / 2;
+    int startY = 250;
+
+    for (int i = 0; i < 3; i++) {
+        UpgradeOption* opt = &globalVariables.levelUpState.options[i];
+        if (opt->type == (UpgradeType)-1) continue;
+
+        int x = startX + i * (cardWidth + spacing);
+        Rectangle cardRect = { (float)x, (float)startY, (float)cardWidth, (float)cardHeight };
+
+        bool isSelected = (globalVariables.levelUpState.selectedIndex == i);
+        Color cardBg = isSelected ? (Color){40, 40, 45, 255} : (Color){25, 25, 30, 255};
+        Color border = isSelected ? GOLD : GRAY;
+
+        DrawRectangleRec(cardRect, cardBg);
+        DrawRectangleLinesEx(cardRect, isSelected ? 5.0f : 2.0f, border);
+
+        // Get Name and Color
+        const char* name = "";
+        Color themeColor = WHITE;
+
+        if (opt->type == UPGRADE_TYPE_WEAPON) {
+            name = Weapon_GetWeaponName(opt->weapon);
+            switch (opt->weapon) {
+                case WEAPON_TYPE_CRYSTAL_WAND: themeColor = (Color){135, 206, 250, 255}; break; // Sky Blue
+                case WEAPON_TYPE_FIREBALL_RING: themeColor = ORANGE; break;
+                case WEAPON_TYPE_BOMB_SHOES: themeColor = GRAY; break;
+                case WEAPON_TYPE_NATURE_SPIKES: themeColor = LIME; break;
+                case WEAPON_TYPE_DEATH_AURA: themeColor = (Color){50, 50, 50, 255}; break;
+            }
+        } else {
+            name = Relic_GetRelicName(opt->relic);
+            switch (opt->relic) {
+                case RELIC_TYPE_HEALTH: themeColor = PINK; break;
+                case RELIC_TYPE_DAMAGE: themeColor = RED; break;
+                case RELIC_TYPE_ATTACK_SPEED: themeColor = YELLOW; break;
+                case RELIC_TYPE_MOVEMENT_SPEED: themeColor = BLUE; break;
+                case RELIC_TYPE_SIZE: themeColor = PURPLE; break;
+                case RELIC_TYPE_LIFE_STEAL: themeColor = (Color){128, 0, 32, 255}; break; // Wine
+                case RELIC_TYPE_XP: themeColor = SKYBLUE; break;
+            }
+        }
+
+        // Draw Name
+        int nameSize = 35;
+        int nameWidth = MeasureText(name, nameSize);
+        DrawText(name, x + cardWidth/2 - nameWidth/2, startY + 40, nameSize, themeColor);
+
+        // Draw Level
+        const char* lvText = TextFormat("LEVEL %d", opt->level);
+        DrawText(lvText, x + cardWidth/2 - MeasureText(lvText, 25)/2, startY + 90, 25, LIGHTGRAY);
+
+        // Draw Type (Weapon or Relic)
+        const char* typeText = (opt->type == UPGRADE_TYPE_WEAPON) ? "WEAPON" : "RELIC";
+        DrawText(typeText, x + cardWidth/2 - MeasureText(typeText, 20)/2, startY + 120, 20, DARKGRAY);
+
+        // Draw Description / Stats
+        int descY = startY + 180;
+        if (opt->level == 1) {
+            const char* desc = "";
+            if (opt->type == UPGRADE_TYPE_WEAPON) {
+                switch (opt->weapon) {
+                    case WEAPON_TYPE_CRYSTAL_WAND: desc = "Fires piercing crystals at the nearest enemy."; break;
+                    case WEAPON_TYPE_FIREBALL_RING: desc = "Fires fireballs in 4 directions that explode on impact."; break;
+                    case WEAPON_TYPE_BOMB_SHOES: desc = "Leaves bombs behind that explode after a short delay."; break;
+                    case WEAPON_TYPE_NATURE_SPIKES: desc = "Spawns spikes under random nearby enemies."; break;
+                    case WEAPON_TYPE_DEATH_AURA: desc = "Deals damage to enemies around the player."; break;
+                }
+            } else {
+                switch (opt->relic) {
+                    case RELIC_TYPE_HEALTH: desc = "Increases Max Health."; break;
+                    case RELIC_TYPE_DAMAGE: desc = "Increases all damage dealt."; break;
+                    case RELIC_TYPE_ATTACK_SPEED: desc = "Increases how fast you attack."; break;
+                    case RELIC_TYPE_MOVEMENT_SPEED: desc = "Increases how fast you move."; break;
+                    case RELIC_TYPE_SIZE: desc = "Increases the size of your attacks."; break;
+                    case RELIC_TYPE_LIFE_STEAL: desc = "Heals you when you deal damage."; break;
+                    case RELIC_TYPE_XP: desc = "Increases XP gained from crystals."; break;
+                }
+            }
+            // Word wrap simple
+            DrawText(TextSubtext(desc, 0, 30), x + 30, descY, 22, RAYWHITE);
+            if (strlen(desc) > 30) DrawText(TextSubtext(desc, 30, 30), x + 30, descY + 30, 22, RAYWHITE);
+        } else {
+            // Bullet points of what changed
+            if (opt->type == UPGRADE_TYPE_WEAPON) {
+                WeaponLevelsDefinition* wlds = &globalVariables.InventoryDefinitions.weaponLevelsDefinition;
+                WeaponDefinition* oldD = NULL;
+                WeaponDefinition* newD = NULL;
+                switch (opt->weapon) {
+                    case WEAPON_TYPE_CRYSTAL_WAND: oldD = &wlds->crystalShard[opt->level-2]; newD = &wlds->crystalShard[opt->level-1]; break;
+                    case WEAPON_TYPE_FIREBALL_RING: oldD = &wlds->fireballRing[opt->level-2]; newD = &wlds->fireballRing[opt->level-1]; break;
+                    case WEAPON_TYPE_BOMB_SHOES: oldD = &wlds->bombShoes[opt->level-2]; newD = &wlds->bombShoes[opt->level-1]; break;
+                    case WEAPON_TYPE_NATURE_SPIKES: oldD = &wlds->natureSpikes[opt->level-2]; newD = &wlds->natureSpikes[opt->level-1]; break;
+                    case WEAPON_TYPE_DEATH_AURA: oldD = &wlds->deathAura[opt->level-2]; newD = &wlds->deathAura[opt->level-1]; break;
+                }
+                
+                int bY = descY;
+                if (newD->damage != oldD->damage) { DrawText(TextFormat("- Damage: %.1f -> %.1f", oldD->damage, newD->damage), x + 30, bY, 20, WHITE); bY += 30; }
+                if (newD->delayBetweenAttacks != oldD->delayBetweenAttacks) { DrawText(TextFormat("- Cooldown: %.1fs -> %.1fs", oldD->delayBetweenAttacks, newD->delayBetweenAttacks), x + 30, bY, 20, WHITE); bY += 30; }
+                if (newD->projectileAmount != oldD->projectileAmount) { DrawText(TextFormat("- Amount: %d -> %d", oldD->projectileAmount, newD->projectileAmount), x + 30, bY, 20, WHITE); bY += 30; }
+                
+                if (opt->weapon == WEAPON_TYPE_CRYSTAL_WAND) {
+                    if (newD->crystal.penetration != oldD->crystal.penetration) DrawText(TextFormat("- Pierce: %d -> %d", oldD->crystal.penetration, newD->crystal.penetration), x + 30, bY, 20, WHITE);
+                } else if (opt->weapon == WEAPON_TYPE_FIREBALL_RING) {
+                    if (newD->fireball.explosionRadius != oldD->fireball.explosionRadius) DrawText(TextFormat("- Radius: %.0f -> %.0f", oldD->fireball.explosionRadius, newD->fireball.explosionRadius), x + 30, bY, 20, WHITE);
+                } else if (opt->weapon == WEAPON_TYPE_BOMB_SHOES) {
+                    if (newD->bombShoes.explosionRadius != oldD->bombShoes.explosionRadius) DrawText(TextFormat("- Radius: %.0f -> %.0f", oldD->bombShoes.explosionRadius, newD->bombShoes.explosionRadius), x + 30, bY, 20, WHITE);
+                } else if (opt->weapon == WEAPON_TYPE_NATURE_SPIKES) {
+                    if (newD->natureSpikes.rangeToSpawn != oldD->natureSpikes.rangeToSpawn) DrawText(TextFormat("- Range: %.0f -> %.0f", oldD->natureSpikes.rangeToSpawn, newD->natureSpikes.rangeToSpawn), x + 30, bY, 20, WHITE);
+                } else if (opt->weapon == WEAPON_TYPE_DEATH_AURA) {
+                    if (newD->deathAura.size != oldD->deathAura.size) DrawText(TextFormat("- Size: %.0f -> %.0f", oldD->deathAura.size, newD->deathAura.size), x + 30, bY, 20, WHITE);
+                }
+            } else {
+                float mult = globalVariables.InventoryDefinitions.RelicDefinitions[opt->relic].multiplier;
+                DrawText(TextFormat("- Effect: +%.0f%% per level", mult * 100.0f), x + 30, descY, 22, WHITE);
+            }
+
+        }
+    }
+}
+
 //~ End of HUD Implementation
 
 // ~Begin of Player Implementation
@@ -516,7 +726,7 @@ PlayerStats Player_GeneratePlayerStats()
 {
     PlayerStats playerStats = {0};
     playerStats.currentXP = 0.0f;
-    playerStats.nextLevelXP = 100.0f;
+    playerStats.nextLevelXP = 200.0f;
     playerStats.healthMultiplier = 1.0f;
     playerStats.damageMultiplier = 1.0f;
     playerStats.attackSpeedMultiplier = 1.0f;
@@ -693,13 +903,7 @@ void Projectile_ProcessAllMovement(float deltaTime)
                         Entity* enemy = &globalVariables.entities[j];
                         if (enemy->bIsActive && enemy->type == ENTITY_TYPE_ENEMY) {
                             if (CheckCollisionCircles(p->position, p->radius, enemy->position, enemy->radius)) {
-                                enemy->enemyCharacter.health -= p->projectile.damage;
-                                enemy->enemyCharacter.flashTimer = 0.1f;
-                                Popup_SpawnDamagePopup(enemy->position, p->projectile.damage);
-                                if (enemy->enemyCharacter.health <= 0) {
-                                    XP_GenerateXPCrystal(enemy->position, enemy->enemyCharacter.xpDropAmount);
-                                    Global_DestroyEntity(j);
-                                }
+                                Global_DealDamageToEnemy(j, p->projectile.damage);
                             }
                         }
                     }
@@ -727,10 +931,7 @@ void Projectile_ProcessAllMovement(float deltaTime)
 
                     if (!alreadyHit) {
                         float dmgApplied = p->projectile.damage;
-                        enemy->enemyCharacter.health -= dmgApplied;
-                        enemy->enemyCharacter.flashTimer = 0.1f;
-                        Popup_SpawnDamagePopup(enemy->position, dmgApplied);
-                        PlaySound(Assets_GetSound(ASSET_SOUND_TYPE_DAMAGE));
+                        Global_DealDamageToEnemy(j, dmgApplied);
 
                         if (p->projectile.projectileType == PROJECTILE_TYPE_CRYSTAL_SHARD || 
                             p->projectile.projectileType == PROJECTILE_TYPE_NATURE_SPIKE) {
@@ -738,9 +939,8 @@ void Projectile_ProcessAllMovement(float deltaTime)
                             p->projectile.hitTracking.hitIds[0] = enemy->id;
                         }
 
-                        if (enemy->enemyCharacter.health <= 0) {
-                            XP_GenerateXPCrystal(enemy->position, enemy->enemyCharacter.xpDropAmount);
-                            Global_DestroyEntity(j);
+                        if (enemy->enemyCharacter.health <= 0 || !enemy->bIsActive) {
+                            // Enemy died or was destroyed
                         }
 
                         if (p->projectile.projectileType == PROJECTILE_TYPE_FIREBALL) {
@@ -769,14 +969,7 @@ void Projectile_ProcessAllMovement(float deltaTime)
                 Entity* enemy = &globalVariables.entities[j];
                 if (!enemy->bIsActive || enemy->type != ENTITY_TYPE_ENEMY) continue;
                 if (CheckCollisionCircles(p->position, p->radius, enemy->position, enemy->radius)) {
-                    // Explosions no longer use hit tracking to save memory, they deal damage once per frame for very short duration
-                    enemy->enemyCharacter.health -= p->projectile.damage;
-                    enemy->enemyCharacter.flashTimer = 0.1f;
-                    Popup_SpawnDamagePopup(enemy->position, p->projectile.damage);
-                    if (enemy->enemyCharacter.health <= 0) {
-                        XP_GenerateXPCrystal(enemy->position, enemy->enemyCharacter.xpDropAmount);
-                        Global_DestroyEntity(j);
-                    }
+                    Global_DealDamageToEnemy(j, p->projectile.damage);
                 }
             }
         }
@@ -919,17 +1112,106 @@ void XP_GrantXP(float amount)
         XP_LevelUp();
     }
 }
+void HUD_GenerateLevelUpOptions()
+{
+    // Collect all candidates
+    UpgradeOption candidates[WEAPON_TYPE_COUNT + RELIC_TYPE_COUNT];
+    int count = 0;
+
+    // Check current weapon count
+    int currentWeaponCount = 0;
+    for (int i = 0; i < MAX_WEAPON_CAPACITY; i++) if (globalVariables.inventory.weaponDatas[i].level > 0) currentWeaponCount++;
+
+    // Weapon Candidates
+    for (int i = 0; i < WEAPON_TYPE_COUNT; i++) {
+        WeaponType type = (WeaponType)i;
+        int invIdx = -1;
+        for (int j = 0; j < MAX_WEAPON_CAPACITY; j++) {
+            if (globalVariables.inventory.weaponDatas[j].level > 0 && globalVariables.inventory.weaponDatas[j].weaponType == type) {
+                invIdx = j; break;
+            }
+        }
+
+        if (invIdx != -1) {
+            // Already have it, check if not maxed
+            if (globalVariables.inventory.weaponDatas[invIdx].level < MAX_WEAPON_LEVEL) {
+                candidates[count].type = UPGRADE_TYPE_WEAPON;
+                candidates[count].weapon = type;
+                candidates[count].level = globalVariables.inventory.weaponDatas[invIdx].level + 1;
+                count++;
+            }
+        } else if (currentWeaponCount < MAX_WEAPON_CAPACITY) {
+            // New weapon
+            candidates[count].type = UPGRADE_TYPE_WEAPON;
+            candidates[count].weapon = type;
+            candidates[count].level = 1;
+            count++;
+        }
+    }
+
+    // Check current relic count
+    int currentRelicCount = 0;
+    for (int i = 0; i < MAX_RELIC_CAPACITY; i++) if (globalVariables.inventory.relicDatas[i].level > 0) currentRelicCount++;
+
+    // Relic Candidates
+    for (int i = 0; i < RELIC_TYPE_COUNT; i++) {
+        RelicType type = (RelicType)i;
+        int invIdx = -1;
+        for (int j = 0; j < MAX_RELIC_CAPACITY; j++) {
+            if (globalVariables.inventory.relicDatas[j].level > 0 && globalVariables.inventory.relicDatas[j].relicType == type) {
+                invIdx = j; break;
+            }
+        }
+
+        if (invIdx != -1) {
+            if (globalVariables.inventory.relicDatas[invIdx].level < MAX_RELIC_LEVEL) {
+                candidates[count].type = UPGRADE_TYPE_RELIC;
+                candidates[count].relic = type;
+                candidates[count].level = globalVariables.inventory.relicDatas[invIdx].level + 1;
+                count++;
+            }
+        } else if (currentRelicCount < MAX_RELIC_CAPACITY) {
+            candidates[count].type = UPGRADE_TYPE_RELIC;
+            candidates[count].relic = type;
+            candidates[count].level = 1;
+            count++;
+        }
+    }
+
+    // Shuffle and pick 3
+    for (int i = 0; i < 3; i++) {
+        if (count > 0) {
+            int idx = GetRandomValue(0, count - 1);
+            globalVariables.levelUpState.options[i] = candidates[idx];
+            // Remove from candidates to avoid duplicates
+            candidates[idx] = candidates[count - 1];
+            count--;
+        } else {
+            // No options left? (Should not happen if balance is correct)
+            globalVariables.levelUpState.options[i].type = (UpgradeType)-1; 
+        }
+    }
+    
+    globalVariables.levelUpState.selectedIndex = 0;
+}
+
 void XP_LevelUp()
 {
     globalVariables.playerStats.currentXP -= globalVariables.playerStats.nextLevelXP;
     globalVariables.playerStats.level++;
     
-    // nextLevelXP = 100 * (1.07)^(level - 1)
-    globalVariables.playerStats.nextLevelXP = 100.0f * powf(1.07f, (float)(globalVariables.playerStats.level - 1));
+    // nextLevelXP = 200 * (1.07)^(level - 1)
+    globalVariables.playerStats.nextLevelXP = 200.0f * powf(1.07f, (float)(globalVariables.playerStats.level - 1));
     
     PlaySound(Assets_GetSound(ASSET_SOUND_TYPE_LEVEL_UP));
-    // Future: Trigger level up UI / choice
+    
+    globalVariables.levelUpState.pendingCount++;
+    if (!globalVariables.levelUpState.bShowLevelUp) {
+        globalVariables.levelUpState.bShowLevelUp = true;
+        HUD_GenerateLevelUpOptions();
+    }
 }
+
 const char* Relic_GetRelicName(RelicType relicType)
 {
     switch (relicType) {
@@ -1430,7 +1712,7 @@ void Weapon_GenerateWeaponLevels()
         WeaponDefinition* def = &globalVariables.InventoryDefinitions.weaponLevelsDefinition.deathAura[i];
         def->damage = 5.1f + (i * 1.78f); 
         def->delayBetweenAttacks = 0.25f - (i * 0.0089f); 
-        def->deathAura.size = 150.0f + (i * 30.0f);
+        def->deathAura.size = 75.0f + (i * 15.0f);
     }
 }
 bool Weapon_AddWeapon(WeaponType weaponType)

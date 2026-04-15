@@ -312,6 +312,27 @@ typedef struct InventoryDefinitions {
     RelicDefinition RelicDefinitions[RELIC_TYPE_COUNT];
 } InventoryDefinitions;
 
+typedef enum UpgradeType {
+    UPGRADE_TYPE_WEAPON,
+    UPGRADE_TYPE_RELIC
+} UpgradeType;
+
+typedef struct UpgradeOption {
+    UpgradeType type;
+    union {
+        WeaponType weapon;
+        RelicType relic;
+    };
+    uint8_t level;
+} UpgradeOption;
+
+typedef struct LevelUpState {
+    bool bShowLevelUp;
+    UpgradeOption options[3];
+    int pendingCount;
+    int selectedIndex;
+} LevelUpState;
+
 typedef struct PlayerStats{
     float currentXP;
     float nextLevelXP;
@@ -345,7 +366,9 @@ typedef struct GlobalVariables{
     uint16_t deathAuraIndex;
     uint16_t nextEntityId;
     bool bShowInventory;
+    LevelUpState levelUpState;
 } GlobalVariables;
+
 // ~End of Structs
 
 // Declaration of Global Variables
@@ -386,6 +409,8 @@ void HUD_Init();
 void HUD_UpdateData();
 void HUD_Draw();
 void HUD_DrawInventory();
+void HUD_DrawLevelUp();
+void HUD_GenerateLevelUpOptions();
 //~ End of HUD Implementation
 
 //~ Begin of Player Implementation
@@ -477,6 +502,32 @@ inline static bool Global_DestroyEntity(uint16_t entityIndex)
     globalVariables.lastEntityIndex--;
 
     return true;
+}
+inline static void Global_DealDamageToEnemy(int enemyIndex, float damage)
+{
+    if (enemyIndex < 0 || enemyIndex >= globalVariables.lastEntityIndex) return;
+    Entity* enemy = &globalVariables.entities[enemyIndex];
+    if (!enemy->bIsActive || enemy->type != ENTITY_TYPE_ENEMY) return;
+
+    enemy->enemyCharacter.health -= damage;
+    enemy->enemyCharacter.flashTimer = 0.1f;
+    Popup_SpawnDamagePopup(enemy->position, damage);
+    PlaySound(Assets_GetSound(ASSET_SOUND_TYPE_DAMAGE));
+
+    // Life Steal logic
+    Entity* player = Global_GetPlayer();
+    if (globalVariables.playerStats.lifeStealMultiplier > 0.0f) {
+        float steal = damage * globalVariables.playerStats.lifeStealMultiplier;
+        player->character.health += steal;
+        if (player->character.health > player->character.maxHealth) {
+            player->character.health = player->character.maxHealth;
+        }
+    }
+
+    if (enemy->enemyCharacter.health <= 0) {
+        XP_GenerateXPCrystal(enemy->position, enemy->enemyCharacter.xpDropAmount);
+        Global_DestroyEntity(enemyIndex);
+    }
 }
 // ~End of Global Implementation
 
