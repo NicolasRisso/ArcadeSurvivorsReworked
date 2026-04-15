@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <time.h>
+#include <math.h>
 
 //~ Begin of Assets Macros
 #define DEFINE_ASSET_GETTER(Type, Name, Array, Count, IDType)                  \
@@ -97,6 +98,7 @@ void Core_UpdateGame(float deltaTime) {
     Weapon_ProcessAttack(deltaTime);
     Projectile_ProcessAllMovement(deltaTime);
     Popup_UpdateAll(deltaTime);
+    XP_MoveCrystals(deltaTime);
     Global_UpdateGameTimer(deltaTime);
 }
 void Core_RenderGraphics() {
@@ -694,7 +696,10 @@ void Projectile_ProcessAllMovement(float deltaTime)
                                 enemy->enemyCharacter.health -= p->projectile.damage;
                                 enemy->enemyCharacter.flashTimer = 0.1f;
                                 Popup_SpawnDamagePopup(enemy->position, p->projectile.damage);
-                                if (enemy->enemyCharacter.health <= 0) Global_DestroyEntity(j);
+                                if (enemy->enemyCharacter.health <= 0) {
+                                    XP_GenerateXPCrystal(enemy->position, enemy->enemyCharacter.xpDropAmount);
+                                    Global_DestroyEntity(j);
+                                }
                             }
                         }
                     }
@@ -734,6 +739,7 @@ void Projectile_ProcessAllMovement(float deltaTime)
                         }
 
                         if (enemy->enemyCharacter.health <= 0) {
+                            XP_GenerateXPCrystal(enemy->position, enemy->enemyCharacter.xpDropAmount);
                             Global_DestroyEntity(j);
                         }
 
@@ -767,7 +773,10 @@ void Projectile_ProcessAllMovement(float deltaTime)
                     enemy->enemyCharacter.health -= p->projectile.damage;
                     enemy->enemyCharacter.flashTimer = 0.1f;
                     Popup_SpawnDamagePopup(enemy->position, p->projectile.damage);
-                    if (enemy->enemyCharacter.health <= 0) Global_DestroyEntity(j);
+                    if (enemy->enemyCharacter.health <= 0) {
+                        XP_GenerateXPCrystal(enemy->position, enemy->enemyCharacter.xpDropAmount);
+                        Global_DestroyEntity(j);
+                    }
                 }
             }
         }
@@ -852,6 +861,75 @@ void Relic_AddRelic(RelicType relicType) {
         }
     }
 }
+void XP_GenerateXPCrystal(Vector2 position, float amount)
+{
+    Entity e = {0};
+    e.type = ENTITY_TYPE_XP_CRYSTAL;
+    e.bIsActive = true;
+    e.position = position;
+    e.velocity = (Vector2){0, 0};
+    e.scale = (Vector2){1.0f, 1.0f};
+    e.radius = 15.0f;
+    e.visualType = VISUAL_TYPE_NONE;
+    e.xpCrystal.amount = amount;
+    e.xpCrystal.bIsMagnetized = false;
+    Global_AddEntity(&e);
+}
+void XP_MoveCrystals(float deltaTime)
+{
+    Entity* player = Global_GetPlayer();
+    if (!player || player->character.bIsDead) return;
+
+    for (int i = 0; i < globalVariables.lastEntityIndex; i++) {
+        Entity* e = &globalVariables.entities[i];
+        if (!e->bIsActive || e->type != ENTITY_TYPE_XP_CRYSTAL) continue;
+
+        float dist = Vector2Distance(e->position, player->position);
+        
+        if (!e->xpCrystal.bIsMagnetized && dist < 100.0f) {
+            e->xpCrystal.bIsMagnetized = true;
+        }
+
+        if (e->xpCrystal.bIsMagnetized) {
+            // Move DIRECTLY towards player
+            Vector2 dir = Vector2Normalize(Vector2Subtract(player->position, e->position));
+            
+            // Speed up over time
+            float accel = 1200.0f; 
+            float currentSpeed = Vector2Length(e->velocity) + (accel * deltaTime);
+            if (currentSpeed > 700.0f) currentSpeed = 700.0f;
+            if (currentSpeed < 200.0f) currentSpeed = 200.0f; // Minimum move speed
+
+            e->velocity = Vector2Scale(dir, currentSpeed);
+            e->position = Vector2Add(e->position, Vector2Scale(e->velocity, deltaTime));
+        }
+
+        if (dist < 20.0f) {
+            XP_GrantXP(e->xpCrystal.amount);
+            Global_DestroyEntity(i);
+        }
+    }
+}
+void XP_GrantXP(float amount)
+{
+    globalVariables.playerStats.currentXP += amount * globalVariables.playerStats.xpMultiplier;
+    PlaySound(Assets_GetSound(ASSET_SOUND_TYPE_XP_GAIN));
+
+    while (globalVariables.playerStats.currentXP >= globalVariables.playerStats.nextLevelXP) {
+        XP_LevelUp();
+    }
+}
+void XP_LevelUp()
+{
+    globalVariables.playerStats.currentXP -= globalVariables.playerStats.nextLevelXP;
+    globalVariables.playerStats.level++;
+    
+    // nextLevelXP = 100 * (1.07)^(level - 1)
+    globalVariables.playerStats.nextLevelXP = 100.0f * powf(1.07f, (float)(globalVariables.playerStats.level - 1));
+    
+    PlaySound(Assets_GetSound(ASSET_SOUND_TYPE_LEVEL_UP));
+    // Future: Trigger level up UI / choice
+}
 const char* Relic_GetRelicName(RelicType relicType)
 {
     switch (relicType) {
@@ -887,6 +965,16 @@ void Render_DrawMap()
 void Render_DrawEntity(Entity *entity)
 {
     if (!entity || !entity->bIsActive)
+        return;
+
+    if (entity->type == ENTITY_TYPE_XP_CRYSTAL) {
+        // Diamond shape (square rotated 0 degrees in DrawPoly gives vertex at top)
+        DrawPoly(entity->position, 4, 8.0f * entity->scale.x, 0, BLUE);
+        DrawPolyLinesEx(entity->position, 4, 8.0f * entity->scale.x, 0, 2.0f, SKYBLUE);
+        return;
+    }
+
+    if (entity->visualType == VISUAL_TYPE_NONE) 
         return;
 
     Texture2D texture;

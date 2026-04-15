@@ -38,7 +38,8 @@ typedef enum EntityType : uint8_t {
     ENTITY_TYPE_PLAYER = 2,
     ENTITY_TYPE_PROJECTILE = 3,
     ENTITY_TYPE_ENEMY = 4,
-    ENTITY_TYPE_DAMAGE_POPUP = 5
+    ENTITY_TYPE_DAMAGE_POPUP = 5,
+    ENTITY_TYPE_XP_CRYSTAL = 6
 } EntityType;
 
 typedef enum ProjectileType : uint8_t {
@@ -179,6 +180,11 @@ typedef struct DamagePopup {
     float timer;
 } DamagePopup;
 
+typedef struct XPCrystal {
+    float amount;
+    bool bIsMagnetized;
+} XPCrystal;
+
 typedef struct Entity{
     EntityType type;
     uint16_t id;
@@ -194,6 +200,7 @@ typedef struct Entity{
         EnemyCharacter enemyCharacter;
         Projectile projectile;
         DamagePopup damagePopup;
+        XPCrystal xpCrystal;
     };
 
     // Sprite Data
@@ -423,6 +430,13 @@ bool Weapon_AddWeapon(WeaponType weaponType); //This function also levels up wea
 void Weapon_ProcessAttack(float deltaTime);
 const char* Weapon_GetWeaponName(WeaponType weaponType);
 //~ End of Weapon Implementation
+
+//~ Begin of XP Implementation
+void XP_GenerateXPCrystal(Vector2 position, float amount);
+void XP_MoveCrystals(float deltaTime);
+void XP_GrantXP(float amount);
+void XP_LevelUp();
+//~ End of XP Implementation
 
 //~ Begin of Global Implementation
 void Global_UpdateGameTimer(float deltaTime);
