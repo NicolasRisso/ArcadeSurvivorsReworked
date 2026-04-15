@@ -395,6 +395,11 @@ Sound Assets_GetSound(AssetSoundType soundID);
 Music Assets_GetMusic(AssetMusicType musicID);
 //~ End of Assets Implementation
 
+//~ Begin of Audio Implementation
+void Audio_PlaySoundVar(AssetSoundType type, bool bIsSpammable);
+void Audio_Update(float deltaTime);
+//~ End of Audio Implementation
+
 //~ Begin of Collision Implementation
 void Collision_MapBorder(Entity* entity);
 //~ End of Collision Implementation
@@ -503,21 +508,31 @@ inline static bool Global_DestroyEntity(uint16_t entityIndex)
 
     return true;
 }
-inline static void Global_DealDamageToEnemy(int enemyIndex, float damage)
+inline static void Global_DealDamageToEnemy(int enemyIndex, float damage, bool bIsAOE)
 {
     if (enemyIndex < 0 || enemyIndex >= globalVariables.lastEntityIndex) return;
     Entity* enemy = &globalVariables.entities[enemyIndex];
     if (!enemy->bIsActive || enemy->type != ENTITY_TYPE_ENEMY) return;
 
+    // Healing should be from what actual damage was dealt
+    float actualDamageDealt = damage;
+    if (actualDamageDealt > enemy->enemyCharacter.health) {
+        actualDamageDealt = enemy->enemyCharacter.health;
+    }
+
     enemy->enemyCharacter.health -= damage;
     enemy->enemyCharacter.flashTimer = 0.1f;
     Popup_SpawnDamagePopup(enemy->position, damage);
-    PlaySound(Assets_GetSound(ASSET_SOUND_TYPE_DAMAGE));
-
+    Audio_PlaySoundVar(ASSET_SOUND_TYPE_DAMAGE, true);
+    
     // Life Steal logic
     Entity* player = Global_GetPlayer();
-    if (globalVariables.playerStats.lifeStealMultiplier > 0.0f) {
-        float steal = damage * globalVariables.playerStats.lifeStealMultiplier;
+    if (globalVariables.playerStats.lifeStealMultiplier > 0.0f && actualDamageDealt > 0) {
+        float steal = actualDamageDealt * globalVariables.playerStats.lifeStealMultiplier;
+        
+        // AOE reduction
+        if (bIsAOE) steal *= 0.4f;
+
         player->character.health += steal;
         if (player->character.health > player->character.maxHealth) {
             player->character.health = player->character.maxHealth;

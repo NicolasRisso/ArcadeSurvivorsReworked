@@ -59,6 +59,11 @@ void Core_InitGame()
     Relic_GenerateRelicDefinition();
     Weapon_AddWeapon((WeaponType)GetRandomValue(0, WEAPON_TYPE_COUNT - 1));
     HUD_Init();
+    
+    // Start Music
+    Music music = Assets_GetMusic(ASSET_MUSIC_TYPE_COMBAT);
+    SetMusicVolume(music, 0.5f);
+    PlayMusicStream(music);
 
     SetTargetFPS(240);
     DisableCursor();
@@ -112,6 +117,9 @@ void Core_ProcessInput()
 }
 
 void Core_UpdateGame(float deltaTime) {
+    // Update Audio & Music (must update every frame for Raylib music stream)
+    Audio_Update(deltaTime);
+
     if (globalVariables.levelUpState.bShowLevelUp) return;
     Player_ProcessMovement(Global_GetPlayer(), deltaTime);
     Enemy_ProcessAllMovement(deltaTime);
@@ -120,6 +128,7 @@ void Core_UpdateGame(float deltaTime) {
     Projectile_ProcessAllMovement(deltaTime);
     Popup_UpdateAll(deltaTime);
     XP_MoveCrystals(deltaTime);
+    // Update Global Game Timer
     Global_UpdateGameTimer(deltaTime);
 }
 void Core_RenderGraphics() {
@@ -205,7 +214,7 @@ void Assets_Init() {
 
     // Loading Music
     globalVariables.assets.musics[ASSET_MUSIC_TYPE_COMBAT] =
-        LoadMusicStream("assets/musics/CombatMusic.ogg");
+        LoadMusicStream("assets/music/CombatMusic.ogg");
 
     // Loading Shaders
     globalVariables.assets.flashShader = LoadShaderFromMemory(flashVS, flashFS);
@@ -233,7 +242,45 @@ void Assets_Unload()
 
     TraceLog(LOG_INFO, "ASSETS: All assets unloaded.");
 }
-// ~End of Assets Implementation
+//~ End of Assets Implementation
+
+//~ Begin of Audio Implementation
+static float spammableTimers[3] = {0, 0, 0};
+
+void Audio_PlaySoundVar(AssetSoundType type, bool bIsSpammable)
+{
+    Sound s = Assets_GetSound(type);
+    
+    if (bIsSpammable) {
+        int slot = -1;
+        for (int i = 0; i < 3; i++) {
+            if (spammableTimers[i] <= 0) {
+                slot = i;
+                break;
+            }
+        }
+        
+        if (slot == -1) return; // All slots busy, drop the sound
+        
+        // Set timer (debounce)
+        spammableTimers[slot] = 0.1f;
+    }
+
+    // Apply pitch modulation (+/- 7%)
+    float pitch = 1.0f + ((float)GetRandomValue(-70, 70) / 1000.0f);
+    SetSoundPitch(s, pitch);
+    PlaySound(s);
+}
+
+void Audio_Update(float deltaTime)
+{
+    for (int i = 0; i < 3; i++) {
+        if (spammableTimers[i] > 0) spammableTimers[i] -= deltaTime;
+    }
+    
+    UpdateMusicStream(Assets_GetMusic(ASSET_MUSIC_TYPE_COMBAT));
+}
+// ~End of Audio Implementation
 
 //~ Begin of Collision Implementation
 void Collision_MapBorder(Entity *entity)
@@ -363,7 +410,7 @@ void Enemy_ProcessAllMovement(float deltaTime)
                 player->character.health -= damage;
                 player->character.invulnerableTimer = 0.5f;
                 player->character.flashTimer = 0.5f;
-                PlaySound(Assets_GetSound(ASSET_SOUND_TYPE_PLAYER_DAMAGE));
+                Audio_PlaySoundVar(ASSET_SOUND_TYPE_PLAYER_DAMAGE, false);
 
                 if (player->character.health <= 0) {
                     player->character.bIsDead = true;
@@ -684,7 +731,88 @@ void HUD_DrawLevelUp()
         }
     }
 }
+void HUD_GenerateLevelUpOptions()
+{
+    // Collect all candidates
+    UpgradeOption candidates[WEAPON_TYPE_COUNT + RELIC_TYPE_COUNT];
+    int count = 0;
 
+    // Check current weapon count
+    int currentWeaponCount = 0;
+    for (int i = 0; i < MAX_WEAPON_CAPACITY; i++) if (globalVariables.inventory.weaponDatas[i].level > 0) currentWeaponCount++;
+
+    // Weapon Candidates
+    for (int i = 0; i < WEAPON_TYPE_COUNT; i++) {
+        WeaponType type = (WeaponType)i;
+        int invIdx = -1;
+        for (int j = 0; j < MAX_WEAPON_CAPACITY; j++) {
+            if (globalVariables.inventory.weaponDatas[j].level > 0 && globalVariables.inventory.weaponDatas[j].weaponType == type) {
+                invIdx = j; break;
+            }
+        }
+
+        if (invIdx != -1) {
+            // Already have it, check if not maxed
+            if (globalVariables.inventory.weaponDatas[invIdx].level < MAX_WEAPON_LEVEL) {
+                candidates[count].type = UPGRADE_TYPE_WEAPON;
+                candidates[count].weapon = type;
+                candidates[count].level = globalVariables.inventory.weaponDatas[invIdx].level + 1;
+                count++;
+            }
+        } else if (currentWeaponCount < MAX_WEAPON_CAPACITY) {
+            // New weapon
+            candidates[count].type = UPGRADE_TYPE_WEAPON;
+            candidates[count].weapon = type;
+            candidates[count].level = 1;
+            count++;
+        }
+    }
+
+    // Check current relic count
+    int currentRelicCount = 0;
+    for (int i = 0; i < MAX_RELIC_CAPACITY; i++) if (globalVariables.inventory.relicDatas[i].level > 0) currentRelicCount++;
+
+    // Relic Candidates
+    for (int i = 0; i < RELIC_TYPE_COUNT; i++) {
+        RelicType type = (RelicType)i;
+        int invIdx = -1;
+        for (int j = 0; j < MAX_RELIC_CAPACITY; j++) {
+            if (globalVariables.inventory.relicDatas[j].level > 0 && globalVariables.inventory.relicDatas[j].relicType == type) {
+                invIdx = j; break;
+            }
+        }
+
+        if (invIdx != -1) {
+            if (globalVariables.inventory.relicDatas[invIdx].level < MAX_RELIC_LEVEL) {
+                candidates[count].type = UPGRADE_TYPE_RELIC;
+                candidates[count].relic = type;
+                candidates[count].level = globalVariables.inventory.relicDatas[invIdx].level + 1;
+                count++;
+            }
+        } else if (currentRelicCount < MAX_RELIC_CAPACITY) {
+            candidates[count].type = UPGRADE_TYPE_RELIC;
+            candidates[count].relic = type;
+            candidates[count].level = 1;
+            count++;
+        }
+    }
+
+    // Shuffle and pick 3
+    for (int i = 0; i < 3; i++) {
+        if (count > 0) {
+            int idx = GetRandomValue(0, count - 1);
+            globalVariables.levelUpState.options[i] = candidates[idx];
+            // Remove from candidates to avoid duplicates
+            candidates[idx] = candidates[count - 1];
+            count--;
+        } else {
+            // No options left? (Should not happen if balance is correct)
+            globalVariables.levelUpState.options[i].type = (UpgradeType)-1; 
+        }
+    }
+    
+    globalVariables.levelUpState.selectedIndex = 0;
+}
 //~ End of HUD Implementation
 
 // ~Begin of Player Implementation
@@ -881,7 +1009,7 @@ void Projectile_ProcessAllMovement(float deltaTime)
                     exp.radius = p->radius;
                     Global_AddEntity(&exp);
                     Global_DestroyEntity(i);
-                    PlaySound(Assets_GetSound(ASSET_SOUND_TYPE_EXPLOSION));
+                    Audio_PlaySoundVar(ASSET_SOUND_TYPE_EXPLOSION, false);
                     continue;
                 }
                 break;
@@ -903,7 +1031,7 @@ void Projectile_ProcessAllMovement(float deltaTime)
                         Entity* enemy = &globalVariables.entities[j];
                         if (enemy->bIsActive && enemy->type == ENTITY_TYPE_ENEMY) {
                             if (CheckCollisionCircles(p->position, p->radius, enemy->position, enemy->radius)) {
-                                Global_DealDamageToEnemy(j, p->projectile.damage);
+                                Global_DealDamageToEnemy(j, p->projectile.damage, true);
                             }
                         }
                     }
@@ -931,7 +1059,8 @@ void Projectile_ProcessAllMovement(float deltaTime)
 
                     if (!alreadyHit) {
                         float dmgApplied = p->projectile.damage;
-                        Global_DealDamageToEnemy(j, dmgApplied);
+                        bool isAOE = (p->projectile.projectileType == PROJECTILE_TYPE_NATURE_SPIKE);
+                        Global_DealDamageToEnemy(j, dmgApplied, isAOE);
 
                         if (p->projectile.projectileType == PROJECTILE_TYPE_CRYSTAL_SHARD || 
                             p->projectile.projectileType == PROJECTILE_TYPE_NATURE_SPIKE) {
@@ -949,7 +1078,7 @@ void Projectile_ProcessAllMovement(float deltaTime)
                              exp.radius = p->projectile.explosive.explosionRadius; 
                              Global_AddEntity(&exp);
                              Global_DestroyEntity(i);
-                             PlaySound(Assets_GetSound(ASSET_SOUND_TYPE_EXPLOSION));
+                             Audio_PlaySoundVar(ASSET_SOUND_TYPE_EXPLOSION, false);
                              goto next_p;
                         }
 
@@ -969,7 +1098,7 @@ void Projectile_ProcessAllMovement(float deltaTime)
                 Entity* enemy = &globalVariables.entities[j];
                 if (!enemy->bIsActive || enemy->type != ENTITY_TYPE_ENEMY) continue;
                 if (CheckCollisionCircles(p->position, p->radius, enemy->position, enemy->radius)) {
-                    Global_DealDamageToEnemy(j, p->projectile.damage);
+                    Global_DealDamageToEnemy(j, p->projectile.damage, true);
                 }
             }
         }
@@ -1054,6 +1183,22 @@ void Relic_AddRelic(RelicType relicType) {
         }
     }
 }
+const char* Relic_GetRelicName(RelicType relicType)
+{
+    switch (relicType) {
+        case RELIC_TYPE_HEALTH: return "Health Relic";
+        case RELIC_TYPE_DAMAGE: return "Damage Relic";
+        case RELIC_TYPE_ATTACK_SPEED: return "Attack Speed Relic";
+        case RELIC_TYPE_MOVEMENT_SPEED: return "Move Speed Relic";
+        case RELIC_TYPE_SIZE: return "Size Relic";
+        case RELIC_TYPE_LIFE_STEAL: return "Life Steal Relic";
+        case RELIC_TYPE_XP: return "XP Relic";
+        default: return "Unknown Relic";
+    }
+}
+//~ End of Relic Implementation
+
+//~ Begin of XP Implementation
 void XP_GenerateXPCrystal(Vector2 position, float amount)
 {
     Entity e = {0};
@@ -1106,95 +1251,12 @@ void XP_MoveCrystals(float deltaTime)
 void XP_GrantXP(float amount)
 {
     globalVariables.playerStats.currentXP += amount * globalVariables.playerStats.xpMultiplier;
-    PlaySound(Assets_GetSound(ASSET_SOUND_TYPE_XP_GAIN));
+    Audio_PlaySoundVar(ASSET_SOUND_TYPE_XP_GAIN, true);
 
     while (globalVariables.playerStats.currentXP >= globalVariables.playerStats.nextLevelXP) {
         XP_LevelUp();
     }
 }
-void HUD_GenerateLevelUpOptions()
-{
-    // Collect all candidates
-    UpgradeOption candidates[WEAPON_TYPE_COUNT + RELIC_TYPE_COUNT];
-    int count = 0;
-
-    // Check current weapon count
-    int currentWeaponCount = 0;
-    for (int i = 0; i < MAX_WEAPON_CAPACITY; i++) if (globalVariables.inventory.weaponDatas[i].level > 0) currentWeaponCount++;
-
-    // Weapon Candidates
-    for (int i = 0; i < WEAPON_TYPE_COUNT; i++) {
-        WeaponType type = (WeaponType)i;
-        int invIdx = -1;
-        for (int j = 0; j < MAX_WEAPON_CAPACITY; j++) {
-            if (globalVariables.inventory.weaponDatas[j].level > 0 && globalVariables.inventory.weaponDatas[j].weaponType == type) {
-                invIdx = j; break;
-            }
-        }
-
-        if (invIdx != -1) {
-            // Already have it, check if not maxed
-            if (globalVariables.inventory.weaponDatas[invIdx].level < MAX_WEAPON_LEVEL) {
-                candidates[count].type = UPGRADE_TYPE_WEAPON;
-                candidates[count].weapon = type;
-                candidates[count].level = globalVariables.inventory.weaponDatas[invIdx].level + 1;
-                count++;
-            }
-        } else if (currentWeaponCount < MAX_WEAPON_CAPACITY) {
-            // New weapon
-            candidates[count].type = UPGRADE_TYPE_WEAPON;
-            candidates[count].weapon = type;
-            candidates[count].level = 1;
-            count++;
-        }
-    }
-
-    // Check current relic count
-    int currentRelicCount = 0;
-    for (int i = 0; i < MAX_RELIC_CAPACITY; i++) if (globalVariables.inventory.relicDatas[i].level > 0) currentRelicCount++;
-
-    // Relic Candidates
-    for (int i = 0; i < RELIC_TYPE_COUNT; i++) {
-        RelicType type = (RelicType)i;
-        int invIdx = -1;
-        for (int j = 0; j < MAX_RELIC_CAPACITY; j++) {
-            if (globalVariables.inventory.relicDatas[j].level > 0 && globalVariables.inventory.relicDatas[j].relicType == type) {
-                invIdx = j; break;
-            }
-        }
-
-        if (invIdx != -1) {
-            if (globalVariables.inventory.relicDatas[invIdx].level < MAX_RELIC_LEVEL) {
-                candidates[count].type = UPGRADE_TYPE_RELIC;
-                candidates[count].relic = type;
-                candidates[count].level = globalVariables.inventory.relicDatas[invIdx].level + 1;
-                count++;
-            }
-        } else if (currentRelicCount < MAX_RELIC_CAPACITY) {
-            candidates[count].type = UPGRADE_TYPE_RELIC;
-            candidates[count].relic = type;
-            candidates[count].level = 1;
-            count++;
-        }
-    }
-
-    // Shuffle and pick 3
-    for (int i = 0; i < 3; i++) {
-        if (count > 0) {
-            int idx = GetRandomValue(0, count - 1);
-            globalVariables.levelUpState.options[i] = candidates[idx];
-            // Remove from candidates to avoid duplicates
-            candidates[idx] = candidates[count - 1];
-            count--;
-        } else {
-            // No options left? (Should not happen if balance is correct)
-            globalVariables.levelUpState.options[i].type = (UpgradeType)-1; 
-        }
-    }
-    
-    globalVariables.levelUpState.selectedIndex = 0;
-}
-
 void XP_LevelUp()
 {
     globalVariables.playerStats.currentXP -= globalVariables.playerStats.nextLevelXP;
@@ -1203,7 +1265,7 @@ void XP_LevelUp()
     // nextLevelXP = 200 * (1.07)^(level - 1)
     globalVariables.playerStats.nextLevelXP = 200.0f * powf(1.07f, (float)(globalVariables.playerStats.level - 1));
     
-    PlaySound(Assets_GetSound(ASSET_SOUND_TYPE_LEVEL_UP));
+    Audio_PlaySoundVar(ASSET_SOUND_TYPE_LEVEL_UP, false);
     
     globalVariables.levelUpState.pendingCount++;
     if (!globalVariables.levelUpState.bShowLevelUp) {
@@ -1211,21 +1273,7 @@ void XP_LevelUp()
         HUD_GenerateLevelUpOptions();
     }
 }
-
-const char* Relic_GetRelicName(RelicType relicType)
-{
-    switch (relicType) {
-        case RELIC_TYPE_HEALTH: return "Health Relic";
-        case RELIC_TYPE_DAMAGE: return "Damage Relic";
-        case RELIC_TYPE_ATTACK_SPEED: return "Attack Speed Relic";
-        case RELIC_TYPE_MOVEMENT_SPEED: return "Move Speed Relic";
-        case RELIC_TYPE_SIZE: return "Size Relic";
-        case RELIC_TYPE_LIFE_STEAL: return "Life Steal Relic";
-        case RELIC_TYPE_XP: return "XP Relic";
-        default: return "Unknown Relic";
-    }
-}
-//~ End of Relic Implementation
+//~ End of XP Implementation
 
 // ~Begin of Render Implementation
 void Render_DrawMap()
