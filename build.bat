@@ -13,7 +13,7 @@ echo Building %PROJECT_NAME%...
 
 :: Compilation Flags
 set "INCLUDES=-Iraylib/include -I%SRC_DIR%"
-set "LIBS=-Lraylib/lib -lraylib -lgdi32 -lwinmm"
+set "LIBS=-Lraylib/lib -Lbin -lraylib -lgdi32 -lwinmm"
 
 :: Compile src/main.c (and others if found in src)
 set "SOURCES="

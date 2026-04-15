@@ -46,6 +46,8 @@ typedef enum ProjectileType : uint8_t {
     PROJECTILE_TYPE_FIREBALL = 2,
     PROJECTILE_TYPE_BOMB = 3,
     PROJECTILE_TYPE_NATURE_SPIKE = 4,
+    PROJECTILE_TYPE_DEATH_AURA = 5,
+    PROJECTILE_TYPE_EXPLOSION = 6
 } ProjectileType;
 
 typedef enum WeaponType : uint8_t {
@@ -53,7 +55,8 @@ typedef enum WeaponType : uint8_t {
     WEAPON_TYPE_FIREBALL_RING = 1,
     WEAPON_TYPE_BOMB_SHOES = 2,
     WEAPON_TYPE_NATURE_SPIKES = 3,
-    WEAPON_TYPE_DEATH_AURA = 4
+    WEAPON_TYPE_DEATH_AURA = 4,
+    WEAPON_TYPE_COUNT = 5
 } WeaponType;
 
 typedef enum RelicType : uint8_t {
@@ -140,10 +143,20 @@ typedef struct EnemyCharacter{
 } EnemyCharacter;
 
 typedef struct Projectile{
+    ProjectileType projectileType;
     float damage;
     float lifeTime;
     uint8_t penetration;
     uint16_t ownerID;
+    union {
+        struct {
+            uint16_t hitIds[16];
+        } crystal;
+        struct {
+            float explosionRadius;
+            float timer;
+        } explosive;
+    };
 } Projectile;
 
 typedef struct Entity{
@@ -192,10 +205,7 @@ typedef struct SpawnerData{
     SpawnDefinition spawnsDefinitions[MAX_SPAWN_DEFINITION];
 } SpawnerData;
 
-typedef struct WeaponData{
-    WeaponType weaponType;
-    uint8_t level;
-} WeaponData;
+// Removed duplicate WeaponData
 
 typedef struct WeaponCrystalDefinition {
     uint8_t penetration;
@@ -227,17 +237,20 @@ typedef struct WeaponDefinition {
     uint8_t projectileAmount;
     union
     {
-        WeaponCrystalDefinition;
-        WeaponFireballDefinition;
-        WeaponBombShoesDefinition;
-        WeaponNatureSpikesDefinition;
-        WeaponDeathAuraDefinition;
+        WeaponCrystalDefinition crystal;
+        WeaponFireballDefinition fireball;
+        WeaponBombShoesDefinition bombShoes;
+        WeaponNatureSpikesDefinition natureSpikes;
+        WeaponDeathAuraDefinition deathAura;
     };
 } WeaponDefinition;
 
 typedef struct WeaponData {
-    uint8_t level;
     WeaponType weaponType;
+    uint8_t level;
+    float attackTimer;
+    uint8_t burstRemaining;
+    float burstTimer;
 } WeaponData;
 
 typedef struct WeaponLevelsDefinition {
@@ -298,6 +311,7 @@ typedef struct GlobalVariables{
 
     SpawnerData spawnerData;
     float gameTimer;
+    uint16_t deathAuraIndex;
 } GlobalVariables;
 // ~End of Structs
 
@@ -348,9 +362,15 @@ void Player_ProcessMovement(Entity* player, float deltaTime);
 void Player_AnimateMovement(Entity* player, float deltaTime);
 //~ End of Player Implementation
 
+//~ Begin of Projectile Implementation
+Entity Projectile_Spawn(ProjectileType type, Vector2 pos, Vector2 vel, float damage, float lifeTime, uint8_t penetration);
+void Projectile_ProcessAllMovement(float deltaTime);
+//~ End of Projectile Implementation
+
 //~ Begin of Relic Implementation
 void Relic_GenerateRelicDefinition();
 void Relic_AddRelic(RelicType relicType); //This function also levels up relics
+void Relic_ApplyEffects();
 //~ End of Relic Implementation
 
 //~ Begin of Render Implementation
@@ -382,16 +402,29 @@ inline static bool Global_AddEntity(Entity* entity)
     if (globalVariables.lastEntityIndex >= MAX_ENTITIES_AMOUNT) return false;
 
     globalVariables.entities[globalVariables.lastEntityIndex] = *entity;
+    if (entity->type == ENTITY_TYPE_PROJECTILE && entity->projectile.projectileType == PROJECTILE_TYPE_DEATH_AURA) {
+        globalVariables.deathAuraIndex = globalVariables.lastEntityIndex;
+    }
     globalVariables.lastEntityIndex++;
 
     return true;
 }
 inline static bool Global_DestroyEntity(uint16_t entityIndex)
 {
-    if (entityIndex < 0 || entityIndex >= globalVariables.lastEntityIndex || entityIndex >= MAX_ENTITIES_AMOUNT) return false;
+    if (entityIndex >= globalVariables.lastEntityIndex || entityIndex >= MAX_ENTITIES_AMOUNT) return false;
 
-    globalVariables.entities[entityIndex] = globalVariables.entities[globalVariables.lastEntityIndex];
-    globalVariables.entities[globalVariables.lastEntityIndex].bIsActive = false;
+    if (entityIndex == globalVariables.deathAuraIndex) {
+        globalVariables.deathAuraIndex = 65535;
+    }
+
+    if (globalVariables.lastEntityIndex > 1 && entityIndex < globalVariables.lastEntityIndex - 1) {
+        globalVariables.entities[entityIndex] = globalVariables.entities[globalVariables.lastEntityIndex - 1];
+        if (globalVariables.deathAuraIndex == globalVariables.lastEntityIndex - 1) {
+            globalVariables.deathAuraIndex = entityIndex;
+        }
+    }
+    
+    globalVariables.entities[globalVariables.lastEntityIndex - 1].bIsActive = false;
     globalVariables.lastEntityIndex--;
 
     return true;
