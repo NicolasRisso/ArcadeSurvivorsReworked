@@ -39,7 +39,8 @@ typedef enum EntityType : uint8_t {
     ENTITY_TYPE_PROJECTILE = 3,
     ENTITY_TYPE_ENEMY = 4,
     ENTITY_TYPE_DAMAGE_POPUP = 5,
-    ENTITY_TYPE_XP_CRYSTAL = 6
+    ENTITY_TYPE_XP_CRYSTAL = 6,
+    ENTITY_TYPE_DROP = 7
 } EntityType;
 
 typedef enum ProjectileType : uint8_t {
@@ -78,6 +79,23 @@ typedef enum EnemyType : uint8_t {
     ENEMY_TYPE_TANK = 2,
     ENEMY_TYPE_BOSS = 3
 } EnemyType;
+
+typedef enum PowerUpType : uint8_t {
+    POWERUP_TYPE_NUKE = 0,
+    POWERUP_TYPE_DOUBLE_TROUBLE = 1,
+    POWERUP_TYPE_TIME_FREEZE = 2,
+    POWERUP_TYPE_MAGNET = 3
+} PowerUpType;
+
+typedef enum InstantDropType : uint8_t {
+    INSTANT_DROP_TYPE_LIFE = 0,
+    INSTANT_DROP_TYPE_BIG_LIFE = 1
+} InstantDropType;
+
+typedef enum DropType : uint8_t {
+    DROP_TYPE_INSTANT = 0,
+    DROP_TYPE_POWERUP = 1
+} DropType;
 
 typedef enum AssetSpriteType : uint8_t {
     ASSET_SPRITE_TYPE_PLAYER = 0,
@@ -125,6 +143,21 @@ typedef enum GameEventType : uint8_t {
     EVENT_TYPE_BOSS = 2
 } GameEventType;
 // ~End of Enums
+
+typedef struct Drop {
+    float radius;
+    DropType dropType;
+    union
+    {
+        PowerUpType powerUpType;
+        InstantDropType instantDropType;
+    };
+} Drop;
+
+typedef struct DropsDefinition{
+    float chanceToPowerUp;
+    float chanceToInstant;
+} DropsDefinition;
 
 // ~Begin of Structs
 typedef struct SpriteData {
@@ -212,6 +245,7 @@ typedef struct Entity{
         Projectile projectile;
         DamagePopup damagePopup;
         XPCrystal xpCrystal;
+        Drop drop;
     };
 
     // Sprite Data
@@ -361,6 +395,14 @@ typedef struct GameEventState {
     float bossCycleTimer;
 } GameEventState;
 
+typedef struct ActivePowerUp {
+    PowerUpType type;
+    float remainingTime;
+    bool bIsActive;
+} ActivePowerUp;
+
+#define MAX_ACTIVE_POWERUPS 4
+
 typedef struct GlobalVariables{
     Assets assets;
     
@@ -372,6 +414,8 @@ typedef struct GlobalVariables{
 
     uint16_t playerIndex;
 
+    DropsDefinition dropsDefinition;
+
     Inventory inventory;
     InventoryDefinitions InventoryDefinitions;
 
@@ -380,8 +424,13 @@ typedef struct GlobalVariables{
     uint16_t deathAuraIndex;
     uint16_t nextEntityId;
     bool bShowInventory;
+
     LevelUpState levelUpState;
     GameEventState eventState;
+
+    ActivePowerUp activePowerUps[MAX_ACTIVE_POWERUPS];
+    char hudEventMessage[64];
+    float hudEventTimer;
 } GlobalVariables;
 
 // ~End of Structs
@@ -419,6 +468,11 @@ void Audio_Update(float deltaTime);
 void Collision_MapBorder(Entity* entity);
 //~ End of Collision Implementation
 
+//~ Begin of Drop Implementation
+void Drop_GenerateDrop(Vector2 pos);
+void Drop_ProcessPickUp();
+//~ End of Drop Implementation
+
 //~ Begin of Enemy Implementation
 Entity Enemy_GenerateEnemy(EnemyType enemyType);
 void Enemy_ProcessAllMovement(float deltaTime);
@@ -436,6 +490,8 @@ void HUD_DrawInventory();
 void HUD_DrawLevelUp();
 void HUD_DrawEvent();
 void HUD_GenerateLevelUpOptions();
+void HUD_DrawPowerUps();
+void HUD_DrawPickupNotification();
 //~ End of HUD Implementation
 
 //~ Begin of Player Implementation
@@ -561,6 +617,7 @@ inline static void Global_DealDamageToEnemy(int enemyIndex, float damage, bool b
 
     if (enemy->enemyCharacter.health <= 0) {
         XP_GenerateXPCrystal(enemy->position, enemy->enemyCharacter.xpDropAmount);
+        Drop_GenerateDrop(enemy->position);
         Global_DestroyEntity(enemyIndex);
     }
 }
