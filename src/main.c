@@ -854,9 +854,7 @@ void HUD_DrawLevelUp()
     if (globalVariables.levelUpState.selectedIndex < 0) globalVariables.levelUpState.selectedIndex = 2;
     if (globalVariables.levelUpState.selectedIndex > 2) globalVariables.levelUpState.selectedIndex = 0;
 
-    if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE) || IsGamepadButtonPressed(0, GAMEPAD_BUTTON_RIGHT_FACE_DOWN)) {
-        choice = globalVariables.levelUpState.selectedIndex;
-        selected = true;
+    if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE) || IsGamepadButtonPressed(0, GAMEPAD_BUTTON_RIGHT_FACE_DOWN)) {choice = globalVariables.levelUpState.selectedIndex; selected = true;
     }
 
     if (selected && choice >= 0 && choice < 3) {
@@ -925,27 +923,8 @@ void HUD_DrawLevelUp()
         // Draw Description / Stats
         i32 descY = startY + 180;
         if (opt->level == 1) {
-            const char* desc = "";
-            if (opt->type == UPGRADE_TYPE_WEAPON) {
-                switch (opt->weapon) {
-                    case WEAPON_TYPE_CRYSTAL_WAND: desc = "Fires piercing crystals at the nearest enemy."; break;
-                    case WEAPON_TYPE_FIREBALL_RING: desc = "Fires fireballs in 4 directions that explode on impact."; break;
-                    case WEAPON_TYPE_BOMB_SHOES: desc = "Leaves bombs behind that explode after a short delay."; break;
-                    case WEAPON_TYPE_NATURE_SPIKES: desc = "Spawns spikes under random nearby enemies."; break;
-                    case WEAPON_TYPE_DEATH_AURA: desc = "Deals damage to enemies around the player."; break;
-                }
-            } else {
-                switch (opt->relic) {
-                    case RELIC_TYPE_HEALTH: desc = "Increases Max Health."; break;
-                    case RELIC_TYPE_DAMAGE: desc = "Increases all damage dealt."; break;
-                    case RELIC_TYPE_ATTACK_SPEED: desc = "Increases how fast you attack."; break;
-                    case RELIC_TYPE_MOVEMENT_SPEED: desc = "Increases how fast you move."; break;
-                    case RELIC_TYPE_SIZE: desc = "Increases the size of your attacks."; break;
-                    case RELIC_TYPE_LIFE_STEAL: desc = "Heals you when you deal damage."; break;
-                    case RELIC_TYPE_XP: desc = "Increases XP gained from crystals."; break;
-                }
-            }
-            // Word wrap simple
+            const char* desc = opt->type == UPGRADE_TYPE_WEAPON ? WeaponDescriptions[opt->weapon] : RelicDescriptions[opt->relic];
+
             DrawText(TextSubtext(desc, 0, 30), x + 30, descY, 22, RAYWHITE);
             if (strlen(desc) > 30) DrawText(TextSubtext(desc, 30, 30), x + 30, descY + 30, 22, RAYWHITE);
         } else {

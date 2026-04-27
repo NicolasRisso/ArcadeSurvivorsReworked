@@ -65,6 +65,7 @@ typedef enum WeaponType : u8 {
     WEAPON_TYPE_COUNT = 6
 } WeaponType;
 const char* WeaponNames[WEAPON_TYPE_COUNT] = {"Unknown Weapon", "Crystal Staff", "Fireball Ring", "Bomb Shoes", "Nature Spikes", "Death Aura"};
+const char* WeaponDescriptions[WEAPON_TYPE_COUNT] = {"Unknown Effect.", "Fires piercing crystals at the nearest enemy.", "Fires fireballs in 4 directions that explode on impact.", "Leaves bombs behind that explode after a short delay.", "Spawns spikes under random nearby enemies.", "Deals damage to enemies around the player."};
 const Color WeaponColors[WEAPON_TYPE_COUNT] = { WHITE, (Color){135, 206, 250, 255}, ORANGE, GRAY, LIME, (Color){50, 50, 50, 255}};
 
 typedef enum RelicType : u8 {
@@ -79,6 +80,7 @@ typedef enum RelicType : u8 {
     RELIC_TYPE_COUNT = 8
 } RelicType;
 const char* RelicNames[RELIC_TYPE_COUNT] = {"Unknown Relic", "Health Relic", "Damage Relic", "Attack Speed Relic", "Move Speed Relic", "Size Relic", "Life Steal Relic", "XP Relic"};
+const char* RelicDescriptions[RELIC_TYPE_COUNT] = {"Unknown Effect.", "Increases Max Health.", "Increases all damage dealt.", "Increases how fast you attack.", "Increases how fast you move.", "Increases the size of your attacks.", "Heals you when you deal damage.", "Increases XP gained from crystals."};
 const Color RelicColors[RELIC_TYPE_COUNT] = {WHITE, PINK, RED, YELLOW, BLUE, PURPLE, (Color){128, 0, 32, 255}, SKYBLUE};
 
 typedef enum EnemyType : u8 {
