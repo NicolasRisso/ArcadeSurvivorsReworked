@@ -92,49 +92,31 @@ void Core_InitGame()
 void Core_ProcessInput()
 {
     Entity* player = Global_GetPlayer();
-    if (!player || !player->bIsActive || player->character.bIsDead) {
-        globalVariables.bShowInventory = false;
-        return;
-    }
-
+    if (!player || player->type == ENTITY_TYPE_UNDEFINED) { globalVariables.bShowInventory = false; return; }
     if (globalVariables.levelUpState.bShowLevelUp) return;
 
-    Vector2 direction = {0, 0};
-
     // Keyboard Movement
-    if (IsKeyDown(KEY_W) || IsKeyDown(KEY_UP))
-        direction.y -= 1.0f;
-    if (IsKeyDown(KEY_S) || IsKeyDown(KEY_DOWN))
-        direction.y += 1.0f;
-    if (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT))
-        direction.x -= 1.0f;
-    if (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT))
-        direction.x += 1.0f;
+    Vector2 direction = {0, 0};
+    if (IsKeyDown(KEY_W) || IsKeyDown(KEY_UP)) direction.y -= 1.0f;
+    if (IsKeyDown(KEY_S) || IsKeyDown(KEY_DOWN)) direction.y += 1.0f;
+    if (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT)) direction.x -= 1.0f;
+    if (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT)) direction.x += 1.0f;
 
     // Gamepad Movement (Axis)
     if (IsGamepadAvailable(0)) {
-        f32 ax = GetGamepadAxisMovement(0, GAMEPAD_AXIS_LEFT_X);
-        f32 ay = GetGamepadAxisMovement(0, GAMEPAD_AXIS_LEFT_Y);
-        f32 deadzone = 0.2f;
+        f32 ax = GetGamepadAxisMovement(0, GAMEPAD_AXIS_LEFT_X); f32 ay = GetGamepadAxisMovement(0, GAMEPAD_AXIS_LEFT_Y); f32 deadzone = 0.2f;
         if (fabsf(ax) > deadzone) direction.x = ax;
         if (fabsf(ay) > deadzone) direction.y = ay;
     }
 
     if (Vector2Length(direction) > 0) {
         direction = Vector2Normalize(direction);
-        player->velocity.x = direction.x * player->character.speed;
-        player->velocity.y = direction.y * player->character.speed;
-    } else {
-        player->velocity = (Vector2){0, 0};
-    }
+        player->velocity.x = direction.x * player->character.speed; player->velocity.y = direction.y * player->character.speed;
+    } else { player->velocity = (Vector2){0, 0}; }
 
     // Inventory Toggle
-    if (IsKeyPressed(KEY_TAB)) {
-        globalVariables.bShowInventory = !globalVariables.bShowInventory;
-    }
-    if (IsGamepadAvailable(0) && IsGamepadButtonPressed(0, GAMEPAD_BUTTON_RIGHT_FACE_UP)) {
-        globalVariables.bShowInventory = !globalVariables.bShowInventory;
-    }
+    if (IsKeyPressed(KEY_TAB)) globalVariables.bShowInventory = !globalVariables.bShowInventory;
+    if (IsGamepadAvailable(0) && IsGamepadButtonPressed(0, GAMEPAD_BUTTON_RIGHT_FACE_UP)) globalVariables.bShowInventory = !globalVariables.bShowInventory;
 }
 void Core_UpdateGame(f32 deltaTime) {
     // Update Audio & Music (must update every frame for Raylib music stream)
@@ -380,7 +362,6 @@ void Drop_GenerateDrop(Vector2 pos)
     if (bSpawn) {
         Entity dropEntity = {0};
         dropEntity.type = ENTITY_TYPE_DROP;
-        dropEntity.bIsActive = true;
         dropEntity.position = pos;
         dropEntity.radius = 20.0f;
         dropEntity.scale = (Vector2){1.0f, 1.0f};
@@ -405,40 +386,28 @@ void PowerUp_Trigger(PowerUpType type)
         case POWERUP_TYPE_NUKE:
             for (i32 i = 0; i < globalVariables.lastEntityIndex; i++) {
                 Entity* enemy = &globalVariables.entities[i];
-                if (enemy->bIsActive && enemy->type == ENTITY_TYPE_ENEMY) {
-                    XP_GenerateXPCrystal(enemy->position, enemy->enemyCharacter.xpDropAmount);
-                    Global_DestroyEntity(i);
-                    i--;
-                }
+                if ( enemy->type == ENTITY_TYPE_ENEMY) { XP_GenerateXPCrystal(enemy->position, enemy->enemyCharacter.xpDropAmount); Global_DestroyEntity(i); i--; }
             }
             Audio_PlaySoundVar(ASSET_SOUND_TYPE_EXPLOSION, false);
             break;
         case POWERUP_TYPE_MAGNET:
             for (i32 i = 0; i < globalVariables.lastEntityIndex; i++) {
                 Entity* crystal = &globalVariables.entities[i];
-                if (crystal->bIsActive && crystal->type == ENTITY_TYPE_XP_CRYSTAL) {
-                    crystal->xpCrystal.bIsMagnetized = true;
-                }
+                if ( crystal->type == ENTITY_TYPE_XP_CRYSTAL) crystal->xpCrystal.bIsMagnetized = true;
             }
             break;
         case POWERUP_TYPE_DOUBLE_TROUBLE:
         case POWERUP_TYPE_TIME_FREEZE:
-            globalVariables.activePowerUps[type].type = type;
-            globalVariables.activePowerUps[type].remainingTime = 15.0f;
-            globalVariables.activePowerUps[type].bIsActive = true;
+            globalVariables.activePowerUps[type].type = type; globalVariables.activePowerUps[type].remainingTime = 15.0f; globalVariables.activePowerUps[type].bIsActive = true;
             break;
     }
 }
 
 void Instant_Trigger(InstantDropType type)
 {
-    Entity* player = Global_GetPlayer();
-    f32 healPercent = (type == INSTANT_DROP_TYPE_LIFE) ? 0.2f : 0.5f;
+    Entity* player = Global_GetPlayer(); f32 healPercent = (type == INSTANT_DROP_TYPE_LIFE) ? 0.2f : 0.5f;
     player->character.health += player->character.maxHealth * healPercent;
-    if (player->character.health > player->character.maxHealth) {
-        player->character.health = player->character.maxHealth;
-    }
-    
+    if (player->character.health > player->character.maxHealth) player->character.health = player->character.maxHealth;
     sprintf(globalVariables.hudEventMessage, "%s HEALED!", (type == INSTANT_DROP_TYPE_LIFE) ? "20%" : "50%");
     globalVariables.hudEventTimer = 1.5f;
 }
@@ -446,20 +415,16 @@ void Instant_Trigger(InstantDropType type)
 void Drop_ProcessPickUp()
 {
     Entity* player = Global_GetPlayer();
-    if (!player || player->character.bIsDead) return;
+    if (!player || player->type == ENTITY_TYPE_UNDEFINED) return;
 
     for (i32 i = 0; i < globalVariables.lastEntityIndex; i++) {
         Entity* dropEntity = &globalVariables.entities[i];
-        if (!dropEntity->bIsActive || dropEntity->type != ENTITY_TYPE_DROP) continue;
+        if (dropEntity->type != ENTITY_TYPE_DROP) continue;
 
         if (CheckCollisionCircles(player->position, player->radius, dropEntity->position, dropEntity->radius)) {
-            if (dropEntity->drop.dropType == DROP_TYPE_POWERUP) {
-                PowerUp_Trigger(dropEntity->drop.powerUpType);
-            } else {
-                Instant_Trigger(dropEntity->drop.instantDropType);
-            }
-            Global_DestroyEntity(i);
-            i--;
+            if (dropEntity->drop.dropType == DROP_TYPE_POWERUP) PowerUp_Trigger(dropEntity->drop.powerUpType);
+            else Instant_Trigger(dropEntity->drop.instantDropType);
+            Global_DestroyEntity(i); i--;
         }
     }
 }
@@ -470,7 +435,6 @@ Entity Enemy_GenerateEnemy(EnemyType enemyType)
 {
     Entity enemy = {0};
     enemy.type = ENTITY_TYPE_ENEMY;
-    enemy.bIsActive = true;
     enemy.position = (Vector2){0, 0}; // Should be set by spawner
     enemy.velocity = (Vector2){0, 0};
     enemy.scale = (Vector2){2.0f, 2.0f};
@@ -548,7 +512,7 @@ void Enemy_ProcessAllMovement(f32 deltaTime)
 
     for (i32 i = 0; i < globalVariables.lastEntityIndex; i++) {
         Entity *current = &globalVariables.entities[i];
-        if (!current->bIsActive || current->type != ENTITY_TYPE_ENEMY)
+        if (current->type != ENTITY_TYPE_ENEMY)
         continue;
 
         if (!bTimeFrozen) {
@@ -579,7 +543,7 @@ void Enemy_ProcessAllMovement(f32 deltaTime)
         if (i == j)
             continue;
         Entity *other = &globalVariables.entities[j];
-        if (!other->bIsActive || other->type != ENTITY_TYPE_ENEMY)
+        if (other->type != ENTITY_TYPE_ENEMY)
             continue;
 
         f32 dist = Vector2Distance(current->position, other->position);
@@ -596,7 +560,7 @@ void Enemy_ProcessAllMovement(f32 deltaTime)
         current->position.y += separation.y * deltaTime * 10.0f;
 
         // Player Contact Damage
-        if (!player->character.bIsDead && player->character.invulnerableTimer <= 0) {
+        if (player->character.invulnerableTimer <= 0) {
             f32 distToPlayer = Vector2Distance(current->position, player->position);
             if (distToPlayer < (current->radius + player->radius)) {
                 f32 damage = current->enemyCharacter.damage;
@@ -607,7 +571,7 @@ void Enemy_ProcessAllMovement(f32 deltaTime)
                 Audio_PlaySoundVar(ASSET_SOUND_TYPE_PLAYER_DAMAGE, false);
 
                 if (player->character.health <= 0) {
-                    player->character.bIsDead = true;
+                    player->type = ENTITY_TYPE_UNDEFINED;
                     player->character.deathFadeTimer = 2.0f;
                     player->character.health = 0;
                 }
@@ -1129,7 +1093,6 @@ Entity Player_GeneratePlayer()
 {
     Entity player = {0};
     player.type = ENTITY_TYPE_PLAYER;
-    player.bIsActive = true;
     player.id = 0;
     player.position = (Vector2){0, 0};
     player.velocity = (Vector2){0, 0};
@@ -1165,8 +1128,8 @@ PlayerStats Player_GeneratePlayerStats()
 }
 void Player_ProcessMovement(Entity *player, f32 deltaTime)
 {
-    if (!player || !player->bIsActive) return;
-    if (player->character.bIsDead) {
+    if (!player) return;
+    if (player->type == ENTITY_TYPE_CHARACTER) {
         if (player->character.deathFadeTimer > 0) player->character.deathFadeTimer -= deltaTime;
         return;
     }
@@ -1216,7 +1179,6 @@ void Player_AnimateMovement(Entity *player, f32 deltaTime)
 Entity Popup_SpawnDamagePopup(Vector2 pos, f32 amount) {
     Entity popup = {0};
     popup.type = ENTITY_TYPE_DAMAGE_POPUP;
-    popup.bIsActive = true;
     popup.position = pos;
     popup.scale = (Vector2){1.0f, 1.0f};
     popup.damagePopup.amount = amount;
@@ -1227,7 +1189,7 @@ Entity Popup_SpawnDamagePopup(Vector2 pos, f32 amount) {
 void Popup_UpdateAll(f32 deltaTime) {
     for (i32 i = 0; i < globalVariables.lastEntityIndex; i++) {
         Entity* popup = &globalVariables.entities[i];
-        if (!popup->bIsActive || popup->type != ENTITY_TYPE_DAMAGE_POPUP) continue;
+        if (popup->type != ENTITY_TYPE_DAMAGE_POPUP) continue;
 
         popup->damagePopup.timer += deltaTime;
         if (popup->damagePopup.timer >= 0.7f) {
@@ -1258,7 +1220,6 @@ Entity Projectile_Spawn(ProjectileType type, Vector2 pos, Vector2 vel, f32 damag
 {
     Entity projectile = {0};
     projectile.type = ENTITY_TYPE_PROJECTILE;
-    projectile.bIsActive = true;
     projectile.position = pos;
     projectile.velocity = vel;
     projectile.scale = (Vector2){1.0f, 1.0f};
@@ -1283,7 +1244,7 @@ void Projectile_ProcessAllMovement(f32 deltaTime)
     Entity* player = Global_GetPlayer();
     for (i32 i = 0; i < globalVariables.lastEntityIndex; i++) {
         Entity* projectile = &globalVariables.entities[i];
-        if (!projectile->bIsActive || projectile->type != ENTITY_TYPE_PROJECTILE) continue;
+        if (projectile->type != ENTITY_TYPE_PROJECTILE) continue;
 
         projectile->projectile.lifeTime -= deltaTime;
         if (projectile->projectile.lifeTime <= 0) { Global_DestroyEntity(i); continue; }
@@ -1331,7 +1292,7 @@ void Projectile_ProcessAllMovement(f32 deltaTime)
                     
                     for (i32 j = 0; j < globalVariables.lastEntityIndex; j++) {
                         Entity* enemy = &globalVariables.entities[j];
-                        if (enemy->bIsActive && enemy->type == ENTITY_TYPE_ENEMY) {
+                        if (enemy->type == ENTITY_TYPE_ENEMY) {
                             if (CheckCollisionCircles(projectile->position, projectile->radius, enemy->position, enemy->radius)) {
                                 Global_DealDamageToEnemy(j, projectile->projectile.damage, true);
                             }
@@ -1348,7 +1309,7 @@ void Projectile_ProcessAllMovement(f32 deltaTime)
             
             for (i32 j = 0; j < globalVariables.lastEntityIndex; j++) {
                 Entity* enemy = &globalVariables.entities[j];
-                if (!enemy->bIsActive || enemy->type != ENTITY_TYPE_ENEMY) continue;
+                if (enemy->type != ENTITY_TYPE_ENEMY) continue;
 
                 if (CheckCollisionCircles(projectile->position, projectile->radius, enemy->position, enemy->radius)) {
                     bool alreadyHit = false;
@@ -1394,7 +1355,7 @@ void Projectile_ProcessAllMovement(f32 deltaTime)
         } else if (projectile->projectile.projectileType == PROJECTILE_TYPE_EXPLOSION) {
             for (i32 j = 0; j < globalVariables.lastEntityIndex; j++) {
                 Entity* enemy = &globalVariables.entities[j];
-                if (!enemy->bIsActive || enemy->type != ENTITY_TYPE_ENEMY) continue;
+                if (enemy->type != ENTITY_TYPE_ENEMY) continue;
                 if (CheckCollisionCircles(projectile->position, projectile->radius, enemy->position, enemy->radius)) {
                     Global_DealDamageToEnemy(j, projectile->projectile.damage, true);
                 }
@@ -1501,7 +1462,6 @@ void XP_GenerateXPCrystal(Vector2 position, f32 amount)
 {
     Entity crystal = {0};
     crystal.type = ENTITY_TYPE_XP_CRYSTAL;
-    crystal.bIsActive = true;
     crystal.position = position;
     crystal.velocity = (Vector2){0, 0};
     crystal.scale = (Vector2){1.0f, 1.0f};
@@ -1513,12 +1473,11 @@ void XP_GenerateXPCrystal(Vector2 position, f32 amount)
 }
 void XP_MoveCrystals(f32 deltaTime)
 {
-    Entity* player = Global_GetPlayer();
-    if (!player || player->character.bIsDead) return;
+    Entity* player = Global_GetPlayer(); if (!player) return;
 
     for (i32 i = 0; i < globalVariables.lastEntityIndex; i++) {
         Entity* crystal = &globalVariables.entities[i];
-        if (!crystal->bIsActive || crystal->type != ENTITY_TYPE_XP_CRYSTAL) continue;
+        if (crystal->type != ENTITY_TYPE_XP_CRYSTAL) continue;
 
         f32 dist = Vector2Distance(crystal->position, player->position);
         
@@ -1592,8 +1551,7 @@ void Render_DrawMap()
 }
 void Render_DrawEntity(Entity *entity)
 {
-    if (!entity || !entity->bIsActive)
-        return;
+    if (!entity) return;
 
     if (entity->type == ENTITY_TYPE_XP_CRYSTAL) {
         // Diamond shape (square rotated 0 degrees in DrawPoly gives vertex at top)
@@ -1636,18 +1594,10 @@ void Render_DrawEntity(Entity *entity)
     Color tint = WHITE;
     if (entity->type == ENTITY_TYPE_ENEMY) {
         switch (entity->enemyCharacter.enemyType) {
-        case ENEMY_TYPE_NORMAL:
-        tint = WHITE;
-        break;
-        case ENEMY_TYPE_FAST:
-        tint = ORANGE;
-        break;
-        case ENEMY_TYPE_TANK:
-        tint = PURPLE;
-        break;
-        case ENEMY_TYPE_BOSS:
-        tint = RED;
-        break;
+        case ENEMY_TYPE_NORMAL: tint = WHITE; break;
+        case ENEMY_TYPE_FAST: tint = ORANGE; break;
+        case ENEMY_TYPE_TANK: tint = PURPLE; break;
+        case ENEMY_TYPE_BOSS: tint = RED; break;
         }
     }
 
@@ -1696,7 +1646,7 @@ void Render_DrawEntity(Entity *entity)
     }
 
     // Death Fade Logic
-    if (entity->type == ENTITY_TYPE_PLAYER && entity->character.bIsDead) {
+    if (entity->type == ENTITY_TYPE_PLAYER) {
         if (entity->character.deathFadeTimer <= 0) return; // Completely gone
         f32 alpha = entity->character.deathFadeTimer / 2.0f;
         tint = ColorAlpha(tint, alpha);
@@ -1713,7 +1663,7 @@ void Render_DrawEntity(Entity *entity)
 }
 void Render_DrawProjectile(Entity *entity)
 {
-    if (!entity || !entity->bIsActive || entity->type != ENTITY_TYPE_PROJECTILE)
+    if (!entity || entity->type != ENTITY_TYPE_PROJECTILE)
         return;
 
     switch (entity->projectile.projectileType) {
@@ -1761,7 +1711,7 @@ void Render_DrawAllEntitiesSorted()
 
     // Pass 1: Count entities per bucket
     for (i32 i = 0; i < globalVariables.lastEntityIndex; i++) {
-        if (!globalVariables.entities[i].bIsActive || globalVariables.entities[i].type == ENTITY_TYPE_DAMAGE_POPUP)
+        if (globalVariables.entities[i].type == ENTITY_TYPE_DAMAGE_POPUP)
             continue;
 
         f32 y = globalVariables.entities[i].position.y;
@@ -1788,7 +1738,7 @@ void Render_DrawAllEntitiesSorted()
         currentOffsets[i] = bucketOffsets[i];
 
     for (i32 i = 0; i < globalVariables.lastEntityIndex; i++) {
-        if (!globalVariables.entities[i].bIsActive || globalVariables.entities[i].type == ENTITY_TYPE_DAMAGE_POPUP)
+        if (globalVariables.entities[i].type == ENTITY_TYPE_DAMAGE_POPUP)
             continue;
 
         f32 y = globalVariables.entities[i].position.y;
@@ -1826,7 +1776,7 @@ void Render_DrawAllEntitiesSorted()
     // Pass 4: Draw Popups on top of everything else in world space
     for (i32 i = 0; i < globalVariables.lastEntityIndex; i++) {
         Entity* entity = &globalVariables.entities[i];
-        if (!entity->bIsActive || entity->type != ENTITY_TYPE_DAMAGE_POPUP) continue;
+        if (entity->type != ENTITY_TYPE_DAMAGE_POPUP) continue;
 
         char dmgText[16];
         sprintf(dmgText, "%.0f", entity->damagePopup.amount);
@@ -1995,7 +1945,7 @@ SpawnerData Spawner_GenerateSpawnerData()
 void Spawner_ProcessSpawnLogic(f32 deltaTime)
 {
     Entity* player = Global_GetPlayer();
-    if (player->character.bIsDead) return;
+    if (player->type == ENTITY_TYPE_UNDEFINED) return;
 
     // Update Difficulty: +10 per minute
     globalVariables.spawnerData.currentDifficulty = (globalVariables.gameTimer / 60.0f) * 10.0f;
@@ -2192,7 +2142,7 @@ bool Weapon_AddWeapon(WeaponType weaponType)
 void Weapon_ProcessAttack(f32 deltaTime)
 {
     Entity* player = Global_GetPlayer();
-    if (!player || player->character.bIsDead) return;
+    if (!player) return;
 
     for (i32 i = 0; i < MAX_WEAPON_CAPACITY; i++) {
         WeaponData* weapon = &globalVariables.inventory.weaponDatas[i];
@@ -2216,7 +2166,7 @@ void Weapon_ProcessAttack(f32 deltaTime)
                 f32 minDist = 99999.0f;
                 i32 targetIdx = -1;
                 for (i32 j = 0; j < globalVariables.lastEntityIndex; j++) {
-                    if (globalVariables.entities[j].bIsActive && globalVariables.entities[j].type == ENTITY_TYPE_ENEMY) {
+                    if (globalVariables.entities[j].type == ENTITY_TYPE_ENEMY) {
                         f32 dist = Vector2Distance(player->position, globalVariables.entities[j].position);
                         if (dist < minDist) { minDist = dist; targetIdx = j; }
                     }
@@ -2265,7 +2215,7 @@ void Weapon_ProcessAttack(f32 deltaTime)
                     for (i32 amt = 0; amt < weaponDef->projectileAmount; amt++) {
                         i32 candidates[100]; i32 cCount = 0;
                         for (i32 j = 0; j < globalVariables.lastEntityIndex && cCount < 100; j++) {
-                            if (globalVariables.entities[j].bIsActive && globalVariables.entities[j].type == ENTITY_TYPE_ENEMY) {
+                            if (globalVariables.entities[j].type == ENTITY_TYPE_ENEMY) {
                                 if (Vector2Distance(player->position, globalVariables.entities[j].position) < weaponDef->natureSpikes.rangeToSpawn) {
                                     candidates[cCount++] = j;
                                 }
@@ -2313,7 +2263,7 @@ const char* Weapon_GetWeaponName(WeaponType weaponType)
 void Global_UpdateGameTimer(f32 deltaTime)
 {
     Entity* player = Global_GetPlayer();
-    if (player && player->character.bIsDead) return;
+    if (player && player->type == ENTITY_TYPE_UNDEFINED) return;
 
     globalVariables.gameTimer += deltaTime;
     HUD_UpdateData();

@@ -194,7 +194,6 @@ typedef struct Character{
     f32 speed;
     f32 flashTimer;
     f32 invulnerableTimer;
-    bool bIsDead;
     f32 deathFadeTimer;
 } Character;
 
@@ -231,7 +230,6 @@ typedef struct Entity{
     EntityType type;
     u16 id;
     u8 spriteID;
-    bool bIsActive;
     Vector2 position;
     Vector2 velocity;
     Vector2 scale;
@@ -540,7 +538,7 @@ inline static bool Global_DestroyEntity(u16 entityIndex)
         }
     }
     
-    globalVariables.entities[globalVariables.lastEntityIndex - 1].bIsActive = false;
+    globalVariables.entities[globalVariables.lastEntityIndex - 1].type = ENTITY_TYPE_UNDEFINED;
     globalVariables.lastEntityIndex--;
 
     return true;
@@ -549,7 +547,7 @@ inline static void Global_DealDamageToEnemy(i32 enemyIndex, f32 damage, bool bIs
 {
     if (enemyIndex < 0 || enemyIndex >= globalVariables.lastEntityIndex) return;
     Entity* enemy = &globalVariables.entities[enemyIndex];
-    if (!enemy->bIsActive || enemy->type != ENTITY_TYPE_ENEMY) return;
+    if (enemy->type != ENTITY_TYPE_ENEMY) return;
 
     // Healing should be from what actual damage was dealt
     f32 actualDamageDealt = damage;
