@@ -56,7 +56,6 @@ void Core_InitGame()
 
     globalVariables.spawnerData = Spawner_GenerateSpawnerData();
     Weapon_GenerateWeaponLevels();
-    Relic_GenerateRelicDefinition();
     Weapon_AddWeapon((WeaponType)GetRandomValue(1, WEAPON_TYPE_COUNT - 1));
 
     // Initialize Drops
@@ -930,16 +929,8 @@ void HUD_DrawLevelUp()
         } else {
             // Bullet points of what changed
             if (opt->type == UPGRADE_TYPE_WEAPON) {
-                WeaponLevelsDefinition* wlds = &globalVariables.InventoryDefinitions.weaponLevelsDefinition;
-                WeaponDefinition* oldD = NULL;
-                WeaponDefinition* newD = NULL;
-                switch (opt->weapon) {
-                    case WEAPON_TYPE_CRYSTAL_WAND: oldD = &wlds->crystalShard[opt->level-2]; newD = &wlds->crystalShard[opt->level-1]; break;
-                    case WEAPON_TYPE_FIREBALL_RING: oldD = &wlds->fireballRing[opt->level-2]; newD = &wlds->fireballRing[opt->level-1]; break;
-                    case WEAPON_TYPE_BOMB_SHOES: oldD = &wlds->bombShoes[opt->level-2]; newD = &wlds->bombShoes[opt->level-1]; break;
-                    case WEAPON_TYPE_NATURE_SPIKES: oldD = &wlds->natureSpikes[opt->level-2]; newD = &wlds->natureSpikes[opt->level-1]; break;
-                    case WEAPON_TYPE_DEATH_AURA: oldD = &wlds->deathAura[opt->level-2]; newD = &wlds->deathAura[opt->level-1]; break;
-                }
+                WeaponDefinition* oldD = &globalVariables.InventoryDefinitions.weaponDefinitions[opt->weapon][opt->level - 2];
+                WeaponDefinition* newD = &globalVariables.InventoryDefinitions.weaponDefinitions[opt->weapon][opt->level - 1];
                 
                 i32 bY = descY;
                 if (newD->damage != oldD->damage) { DrawText(TextFormat("- Damage: %.1f -> %.1f", oldD->damage, newD->damage), x + 30, bY, 20, WHITE); bY += 30; }
@@ -958,7 +949,7 @@ void HUD_DrawLevelUp()
                     if (newD->deathAura.size != oldD->deathAura.size) DrawText(TextFormat("- Size: %.0f -> %.0f", oldD->deathAura.size, newD->deathAura.size), x + 30, bY, 20, WHITE);
                 }
             } else {
-                f32 mult = globalVariables.InventoryDefinitions.RelicDefinitions[opt->relic].multiplier;
+                f32 mult = relicLevelDefinitions[opt->relic].multiplier;
                 DrawText(TextFormat("- Effect: +%.0f%% per level", mult * 100.0f), x + 30, descY, 22, WHITE);
             }
 
@@ -1259,7 +1250,7 @@ void Projectile_ProcessAllMovement(f32 deltaTime)
                             break;
                         }
                     }
-                    WeaponDefinition* weaponDef = &globalVariables.InventoryDefinitions.weaponLevelsDefinition.deathAura[level-1];
+                    WeaponDefinition* weaponDef = &globalVariables.InventoryDefinitions.weaponDefinitions[WEAPON_TYPE_DEATH_AURA][level-1];
                     projectile->projectile.timer = weaponDef->delayBetweenAttacks / globalVariables.playerStats.attackSpeedMultiplier;
                     
                     for (i32 j = 0; j < globalVariables.lastEntityIndex; j++) {
@@ -1339,15 +1330,6 @@ void Projectile_ProcessAllMovement(f32 deltaTime)
 //~ End of Projectile Implementation
 
 //~ Begin of Relic Implementation
-void Relic_GenerateRelicDefinition() {
-    globalVariables.InventoryDefinitions.RelicDefinitions[RELIC_TYPE_HEALTH].multiplier = 0.07f;
-    globalVariables.InventoryDefinitions.RelicDefinitions[RELIC_TYPE_DAMAGE].multiplier = 0.08f;
-    globalVariables.InventoryDefinitions.RelicDefinitions[RELIC_TYPE_ATTACK_SPEED].multiplier = 0.06f;
-    globalVariables.InventoryDefinitions.RelicDefinitions[RELIC_TYPE_MOVEMENT_SPEED].multiplier = 0.10f;
-    globalVariables.InventoryDefinitions.RelicDefinitions[RELIC_TYPE_SIZE].multiplier = 0.15f;
-    globalVariables.InventoryDefinitions.RelicDefinitions[RELIC_TYPE_LIFE_STEAL].multiplier = 0.01f;
-    globalVariables.InventoryDefinitions.RelicDefinitions[RELIC_TYPE_XP].multiplier = 0.09f;
-}
 void Relic_ApplyEffects() {
     Entity* player = Global_GetPlayer();
     if (!player) return;
@@ -1367,7 +1349,7 @@ void Relic_ApplyEffects() {
         RelicData* relic = &globalVariables.inventory.relicDatas[i];
         if (relic->level == 0) continue;
 
-        f32 bonus = (f32)relic->level * globalVariables.InventoryDefinitions.RelicDefinitions[relic->relicType].multiplier;
+        f32 bonus = (f32)relic->level * relicLevelDefinitions[relic->relicType].multiplier;
 
         switch (relic->relicType) {
             case RELIC_TYPE_HEALTH: globalVariables.playerStats.healthMultiplier += bonus; break;
@@ -2020,61 +2002,13 @@ void Spawner_ProcessSpawnLogic(f32 deltaTime)
 //~ Begin of Weapon Implementation
 void Weapon_GenerateWeaponLevels()
 {
-    // Crystal Wand
     for (i32 i = 0; i < MAX_WEAPON_LEVEL; i++) {
-        WeaponDefinition* weaponDef = &globalVariables.InventoryDefinitions.weaponLevelsDefinition.crystalShard[i];
-        weaponDef->damage = 15.1f + (i * 5.0f);
-        weaponDef->delayBetweenAttacks = 4.0f;
-        weaponDef->projectileAmount = 1 + (i / 2);
-        weaponDef->crystal.penetration = 2 + (i);
-        if (i == MAX_WEAPON_LEVEL - 1) {
-            weaponDef->projectileAmount = 8;
-            weaponDef->crystal.penetration = 16;
-        }
-    }
-
-    // Fireball Ring
-    for (i32 i = 0; i < MAX_WEAPON_LEVEL; i++) {
-        WeaponDefinition* weaponDef = &globalVariables.InventoryDefinitions.weaponLevelsDefinition.fireballRing[i];
-        weaponDef->damage = 30.0f + (i * 8.0f);
-        weaponDef->delayBetweenAttacks = 5.0f;
-        weaponDef->projectileAmount = 1;
-        if (i + 1 >= 5) weaponDef->projectileAmount = 2;
-        if (i + 1 >= 9) weaponDef->projectileAmount = 3;
-        if (i + 1 >= 13) weaponDef->projectileAmount = 4;
-        if (i + 1 >= 15) weaponDef->projectileAmount = 6;
-        weaponDef->fireball.explosionRadius = 100.0f + (i * 10.0f);
-        weaponDef->fireball.explosionDamageMultipler = 0.5f + (i * 0.1f);
-    }
-
-    // Bomb Shoes
-    for (i32 i = 0; i < MAX_WEAPON_LEVEL; i++) {
-        WeaponDefinition* weaponDef = &globalVariables.InventoryDefinitions.weaponLevelsDefinition.bombShoes[i];
-        weaponDef->damage = 50.0f + (i * 35.0f);
-        weaponDef->delayBetweenAttacks = 8.0f - (i * 0.428f); 
-        if (weaponDef->delayBetweenAttacks < 2.0f) weaponDef->delayBetweenAttacks = 2.0f;
-        weaponDef->bombShoes.delayToExplode = 3.0f - (i * 0.071f); 
-        weaponDef->bombShoes.explosionRadius = 100.0f + (i * 25.0f);
-    }
-
-    // Nature Spikes
-    for (i32 i = 0; i < MAX_WEAPON_LEVEL; i++) {
-        WeaponDefinition* weaponDef = &globalVariables.InventoryDefinitions.weaponLevelsDefinition.natureSpikes[i];
-        weaponDef->damage = 10.0f + (i * 4.0f);
-        weaponDef->delayBetweenAttacks = 5.5f - (i * 0.285f); 
-        if (weaponDef->delayBetweenAttacks < 2.0f) weaponDef->delayBetweenAttacks = 2.0f;
-        weaponDef->projectileAmount = 1 + (i / 7); 
-        weaponDef->natureSpikes.spikeDuration = 2.0f + (i * 0.142f); 
-        weaponDef->natureSpikes.rangeToSpawn = 400.0f + (i * 40.0f);
-        weaponDef->natureSpikes.spikeMaxDamage = 100 + (i * 80); 
-    }
-
-    // Death Aura
-    for (i32 i = 0; i < MAX_WEAPON_LEVEL; i++) {
-        WeaponDefinition* weaponDef = &globalVariables.InventoryDefinitions.weaponLevelsDefinition.deathAura[i];
-        weaponDef->damage = 5.1f + (i * 1.78f); 
-        weaponDef->delayBetweenAttacks = 0.25f - (i * 0.0089f); 
-        weaponDef->deathAura.size = 150.0f + (i * 30.0f);
+        f32 l = (f32)i; InventoryDefinitions* defs = &globalVariables.InventoryDefinitions;
+        defs->weaponDefinitions[WEAPON_TYPE_CRYSTAL_WAND][i] = (WeaponDefinition){ 15.1f + l*5, 4.0f, (i==14?8:1+i/2), .crystal = {2+i+(i==14?14:0)} };
+        defs->weaponDefinitions[WEAPON_TYPE_FIREBALL_RING][i] = (WeaponDefinition){ 30.0f + l*8, 5.0f, 1+(i>=4)+(i>=8)+(i>=12)+(i>=14)*2, .fireball = {100.0f+l*10, 0.5f+l*0.1f} };
+        defs->weaponDefinitions[WEAPON_TYPE_BOMB_SHOES][i] = (WeaponDefinition){ 50.0f + l*35, fmaxf(2.0f, 8.0f-l*0.428f), 1, .bombShoes = {100.0f+l*25, 3.0f-l*0.071f} };
+        defs->weaponDefinitions[WEAPON_TYPE_NATURE_SPIKES][i] = (WeaponDefinition){ 10.0f + l*4, fmaxf(2.0f, 5.5f-l*0.285f), 1+i/7, .natureSpikes = {400.0f+l*40, 2.0f+l*0.142f, 100+l*80} };
+        defs->weaponDefinitions[WEAPON_TYPE_DEATH_AURA][i] = (WeaponDefinition){ 5.1f + l*1.78f, 0.25f-l*0.0089f, 1, .deathAura = {150.0f+l*30} };
     }
 }
 bool Weapon_AddWeapon(WeaponType weaponType)
@@ -2109,14 +2043,7 @@ void Weapon_ProcessAttack(f32 deltaTime)
         WeaponData* weapon = &globalVariables.inventory.weaponDatas[i];
         if (weapon->level == 0) continue;
 
-        WeaponDefinition* weaponDef = NULL;
-        switch (weapon->weaponType) {
-            case WEAPON_TYPE_CRYSTAL_WAND: weaponDef = &globalVariables.InventoryDefinitions.weaponLevelsDefinition.crystalShard[weapon->level-1]; break;
-            case WEAPON_TYPE_FIREBALL_RING: weaponDef = &globalVariables.InventoryDefinitions.weaponLevelsDefinition.fireballRing[weapon->level-1]; break;
-            case WEAPON_TYPE_BOMB_SHOES: weaponDef = &globalVariables.InventoryDefinitions.weaponLevelsDefinition.bombShoes[weapon->level-1]; break;
-            case WEAPON_TYPE_NATURE_SPIKES: weaponDef = &globalVariables.InventoryDefinitions.weaponLevelsDefinition.natureSpikes[weapon->level-1]; break;
-            case WEAPON_TYPE_DEATH_AURA: weaponDef = &globalVariables.InventoryDefinitions.weaponLevelsDefinition.deathAura[weapon->level-1]; break;
-        }
+        WeaponDefinition* weaponDef = &globalVariables.InventoryDefinitions.weaponDefinitions[weapon->weaponType][weapon->level - 1];
         if (!weaponDef) continue;
 
         weapon->attackTimer -= deltaTime;
