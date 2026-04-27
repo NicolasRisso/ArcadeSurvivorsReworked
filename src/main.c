@@ -16,7 +16,7 @@
 // Definition of Global Variables
 GlobalVariables globalVariables;
 
-int main(void)
+i32 main(void)
 {
     Core_InitGame();
 
@@ -64,7 +64,7 @@ void Core_InitGame()
     globalVariables.dropsDefinition.chanceToInstant = 0.02f;
 
     // Initialize Active Power-ups
-    for (int i = 0; i < MAX_ACTIVE_POWERUPS; i++) {
+    for (i32 i = 0; i < MAX_ACTIVE_POWERUPS; i++) {
         globalVariables.activePowerUps[i].bIsActive = false;
     }
     globalVariables.hudEventTimer = 0.0f;
@@ -113,9 +113,9 @@ void Core_ProcessInput()
 
     // Gamepad Movement (Axis)
     if (IsGamepadAvailable(0)) {
-        float ax = GetGamepadAxisMovement(0, GAMEPAD_AXIS_LEFT_X);
-        float ay = GetGamepadAxisMovement(0, GAMEPAD_AXIS_LEFT_Y);
-        float deadzone = 0.2f;
+        f32 ax = GetGamepadAxisMovement(0, GAMEPAD_AXIS_LEFT_X);
+        f32 ay = GetGamepadAxisMovement(0, GAMEPAD_AXIS_LEFT_Y);
+        f32 deadzone = 0.2f;
         if (fabsf(ax) > deadzone) direction.x = ax;
         if (fabsf(ay) > deadzone) direction.y = ay;
     }
@@ -136,7 +136,7 @@ void Core_ProcessInput()
         globalVariables.bShowInventory = !globalVariables.bShowInventory;
     }
 }
-void Core_UpdateGame(float deltaTime) {
+void Core_UpdateGame(f32 deltaTime) {
     // Update Audio & Music (must update every frame for Raylib music stream)
     Audio_Update(deltaTime);
 
@@ -166,7 +166,7 @@ void Core_UpdateGame(float deltaTime) {
     if (globalVariables.hudEventTimer > 0) globalVariables.hudEventTimer -= deltaTime;
 
     // Tick down Active Power-ups
-    for (int i = 0; i < MAX_ACTIVE_POWERUPS; i++) {
+    for (i32 i = 0; i < MAX_ACTIVE_POWERUPS; i++) {
         if (globalVariables.activePowerUps[i].bIsActive) {
             globalVariables.activePowerUps[i].remainingTime -= deltaTime;
             if (globalVariables.activePowerUps[i].remainingTime <= 0) {
@@ -210,7 +210,7 @@ void Core_CloseGame() {
     CloseAudioDevice();
     CloseWindow();
 }
-int Core_IsGameReadyToClose()
+i32 Core_IsGameReadyToClose()
 {
     return WindowShouldClose();
 }
@@ -287,11 +287,11 @@ void Assets_Unload()
 {
     TraceLog(LOG_INFO, "ASSETS: Unloading assets...");
 
-    for (int i = 0; i < ASSET_SPRITE_TYPE_COUNT; i++)
+    for (i32 i = 0; i < ASSET_SPRITE_TYPE_COUNT; i++)
         UnloadTexture(globalVariables.assets.sprites[i]);
-    for (int i = 0; i < ASSET_SOUND_TYPE_COUNT; i++)
+    for (i32 i = 0; i < ASSET_SOUND_TYPE_COUNT; i++)
         UnloadSound(globalVariables.assets.sounds[i]);
-    for (int i = 0; i < ASSET_MUSIC_TYPE_COUNT; i++)
+    for (i32 i = 0; i < ASSET_MUSIC_TYPE_COUNT; i++)
         UnloadMusicStream(globalVariables.assets.musics[i]);
 
     UnloadShader(globalVariables.assets.flashShader);
@@ -301,15 +301,15 @@ void Assets_Unload()
 //~ End of Assets Implementation
 
 //~ Begin of Audio Implementation
-static float spammableTimers[3] = {0, 0, 0};
+static f32 spammableTimers[3] = {0, 0, 0};
 
 void Audio_PlaySoundVar(AssetSoundType type, bool bIsSpammable)
 {
     Sound s = Assets_GetSound(type);
     
     if (bIsSpammable) {
-        int slot = -1;
-        for (int i = 0; i < 3; i++) {
+        i32 slot = -1;
+        for (i32 i = 0; i < 3; i++) {
             if (spammableTimers[i] <= 0) {
                 slot = i;
                 break;
@@ -323,14 +323,14 @@ void Audio_PlaySoundVar(AssetSoundType type, bool bIsSpammable)
     }
 
     // Apply pitch modulation (+/- 7%)
-    float pitch = 1.0f + ((float)GetRandomValue(-70, 70) / 1000.0f);
+    f32 pitch = 1.0f + ((f32)GetRandomValue(-70, 70) / 1000.0f);
     SetSoundPitch(s, pitch);
     PlaySound(s);
 }
 
-void Audio_Update(float deltaTime)
+void Audio_Update(f32 deltaTime)
 {
-    for (int i = 0; i < 3; i++) {
+    for (i32 i = 0; i < 3; i++) {
         if (spammableTimers[i] > 0) spammableTimers[i] -= deltaTime;
     }
     
@@ -341,8 +341,8 @@ void Audio_Update(float deltaTime)
 //~ Begin of Collision Implementation
 void Collision_MapBorder(Entity *entity)
 {
-    float min = -MAP_HALF_SIZE + entity->radius;
-    float max = MAP_HALF_SIZE - entity->radius;
+    f32 min = -MAP_HALF_SIZE + entity->radius;
+    f32 max = MAP_HALF_SIZE - entity->radius;
 
     if (entity->position.x < min)
         entity->position.x = min;
@@ -358,13 +358,13 @@ void Collision_MapBorder(Entity *entity)
 //~ Begin of Drop Implementation
 void Drop_GenerateDrop(Vector2 pos)
 {
-    float powerUpChance = 0.01f - (floorf(globalVariables.gameTimer / 60.0f) * 0.001f);
+    f32 powerUpChance = 0.01f - (floorf(globalVariables.gameTimer / 60.0f) * 0.001f);
     if (powerUpChance < 0.005f) powerUpChance = 0.005f;
 
-    float instantChance = 0.02f - (floorf(globalVariables.gameTimer / 60.0f) * 0.002f);
+    f32 instantChance = 0.02f - (floorf(globalVariables.gameTimer / 60.0f) * 0.002f);
     if (instantChance < 0.01f) instantChance = 0.01f;
 
-    float roll = (float)GetRandomValue(0, 10000) / 10000.0f;
+    f32 roll = (f32)GetRandomValue(0, 10000) / 10000.0f;
 
     DropType dropType;
     bool bSpawn = false;
@@ -403,7 +403,7 @@ void PowerUp_Trigger(PowerUpType type)
 
     switch (type) {
         case POWERUP_TYPE_NUKE:
-            for (int i = 0; i < globalVariables.lastEntityIndex; i++) {
+            for (i32 i = 0; i < globalVariables.lastEntityIndex; i++) {
                 Entity* enemy = &globalVariables.entities[i];
                 if (enemy->bIsActive && enemy->type == ENTITY_TYPE_ENEMY) {
                     XP_GenerateXPCrystal(enemy->position, enemy->enemyCharacter.xpDropAmount);
@@ -414,7 +414,7 @@ void PowerUp_Trigger(PowerUpType type)
             Audio_PlaySoundVar(ASSET_SOUND_TYPE_EXPLOSION, false);
             break;
         case POWERUP_TYPE_MAGNET:
-            for (int i = 0; i < globalVariables.lastEntityIndex; i++) {
+            for (i32 i = 0; i < globalVariables.lastEntityIndex; i++) {
                 Entity* crystal = &globalVariables.entities[i];
                 if (crystal->bIsActive && crystal->type == ENTITY_TYPE_XP_CRYSTAL) {
                     crystal->xpCrystal.bIsMagnetized = true;
@@ -433,7 +433,7 @@ void PowerUp_Trigger(PowerUpType type)
 void Instant_Trigger(InstantDropType type)
 {
     Entity* player = Global_GetPlayer();
-    float healPercent = (type == INSTANT_DROP_TYPE_LIFE) ? 0.2f : 0.5f;
+    f32 healPercent = (type == INSTANT_DROP_TYPE_LIFE) ? 0.2f : 0.5f;
     player->character.health += player->character.maxHealth * healPercent;
     if (player->character.health > player->character.maxHealth) {
         player->character.health = player->character.maxHealth;
@@ -448,7 +448,7 @@ void Drop_ProcessPickUp()
     Entity* player = Global_GetPlayer();
     if (!player || player->character.bIsDead) return;
 
-    for (int i = 0; i < globalVariables.lastEntityIndex; i++) {
+    for (i32 i = 0; i < globalVariables.lastEntityIndex; i++) {
         Entity* dropEntity = &globalVariables.entities[i];
         if (!dropEntity->bIsActive || dropEntity->type != ENTITY_TYPE_DROP) continue;
 
@@ -480,7 +480,7 @@ Entity Enemy_GenerateEnemy(EnemyType enemyType)
     enemy.animatedStaticSprite.spriteID = ASSET_SPRITE_TYPE_BAT;
     enemy.animatedStaticSprite.flipX = false;
     enemy.animatedStaticSprite.animationDuration = 1.0f;
-    enemy.animatedStaticSprite.animationTimer = (float)GetRandomValue(0, 1000) / 1000.0f;
+    enemy.animatedStaticSprite.animationTimer = (f32)GetRandomValue(0, 1000) / 1000.0f;
 
     enemy.enemyCharacter.enemyType = enemyType;
 
@@ -515,12 +515,12 @@ Entity Enemy_GenerateEnemy(EnemyType enemyType)
     }
 
     // Apply Progression Scaling
-    int minutes = (int)(globalVariables.gameTimer / 60.0f);
+    i32 minutes = (i32)(globalVariables.gameTimer / 60.0f);
     if (minutes > 0) {
-        float hpScale = powf(1.25f, (float)minutes);
-        float dmgScale = powf(1.15f, (float)minutes);
-        float xpScale = powf(1.05f, (float)minutes);
-        float speedScale = powf(1.03f, (float)minutes);
+        f32 hpScale = powf(1.25f, (f32)minutes);
+        f32 dmgScale = powf(1.15f, (f32)minutes);
+        f32 xpScale = powf(1.05f, (f32)minutes);
+        f32 speedScale = powf(1.03f, (f32)minutes);
 
         enemy.enemyCharacter.health *= hpScale;
         enemy.enemyCharacter.damage *= dmgScale;
@@ -535,18 +535,18 @@ Entity Enemy_GenerateEnemy(EnemyType enemyType)
 
     // Scale damage after set if minutes > 0
     if (minutes > 0 && enemyType != ENEMY_TYPE_BOSS) {
-        enemy.enemyCharacter.damage *= powf(1.15f, (float)minutes);
+        enemy.enemyCharacter.damage *= powf(1.15f, (f32)minutes);
     }
 
     return enemy;
 }
-void Enemy_ProcessAllMovement(float deltaTime)
+void Enemy_ProcessAllMovement(f32 deltaTime)
 {
     Entity *player = Global_GetPlayer();
 
     bool bTimeFrozen = globalVariables.activePowerUps[POWERUP_TYPE_TIME_FREEZE].bIsActive;
 
-    for (int i = 0; i < globalVariables.lastEntityIndex; i++) {
+    for (i32 i = 0; i < globalVariables.lastEntityIndex; i++) {
         Entity *current = &globalVariables.entities[i];
         if (!current->bIsActive || current->type != ENTITY_TYPE_ENEMY)
         continue;
@@ -575,19 +575,19 @@ void Enemy_ProcessAllMovement(float deltaTime)
 
         // Separation Pass (Avoidance)
         Vector2 separation = {0, 0};
-        for (int j = 0; j < globalVariables.lastEntityIndex; j++) {
+        for (i32 j = 0; j < globalVariables.lastEntityIndex; j++) {
         if (i == j)
             continue;
         Entity *other = &globalVariables.entities[j];
         if (!other->bIsActive || other->type != ENTITY_TYPE_ENEMY)
             continue;
 
-        float dist = Vector2Distance(current->position, other->position);
-        float minDist = current->radius + other->radius;
+        f32 dist = Vector2Distance(current->position, other->position);
+        f32 minDist = current->radius + other->radius;
         if (dist < minDist && dist > 0) {
             Vector2 push = Vector2Subtract(current->position, other->position);
             push = Vector2Normalize(push);
-            float overlap = minDist - dist;
+            f32 overlap = minDist - dist;
             separation.x += push.x * overlap * 1.5f;
             separation.y += push.y * overlap * 1.5f;
         }
@@ -597,9 +597,9 @@ void Enemy_ProcessAllMovement(float deltaTime)
 
         // Player Contact Damage
         if (!player->character.bIsDead && player->character.invulnerableTimer <= 0) {
-            float distToPlayer = Vector2Distance(current->position, player->position);
+            f32 distToPlayer = Vector2Distance(current->position, player->position);
             if (distToPlayer < (current->radius + player->radius)) {
-                float damage = current->enemyCharacter.damage;
+                f32 damage = current->enemyCharacter.damage;
                 
                 player->character.health -= damage;
                 player->character.invulnerableTimer = 0.5f;
@@ -639,8 +639,8 @@ void Event_TriggerEvent(GameEventType type)
     if (type == EVENT_TYPE_BOSS) {
         // Spawn a Boss at a random location away from the player
         Entity boss = Enemy_GenerateEnemy(ENEMY_TYPE_BOSS);
-        float angle = (float)GetRandomValue(0, 360) * DEG2RAD;
-        float dist = 800.0f;
+        f32 angle = (f32)GetRandomValue(0, 360) * DEG2RAD;
+        f32 dist = 800.0f;
         boss.position = Vector2Add(Global_GetPlayer()->position, (Vector2){ cosf(angle) * dist, sinf(angle) * dist });
         Collision_MapBorder(&boss);
         Global_AddEntity(&boss);
@@ -652,24 +652,24 @@ void Event_TriggerEvent(GameEventType type)
 void HUD_DrawEvent()
 {
     const char* msg = NULL;
-    float alpha = 0.0f;
+    f32 alpha = 0.0f;
 
     // Check Swarm Warning (120s cycle)
-    float swarmRemaining = 120.0f - globalVariables.eventState.swarmCycleTimer;
+    f32 swarmRemaining = 120.0f - globalVariables.eventState.swarmCycleTimer;
     if (swarmRemaining > 0 && swarmRemaining <= 5.0f) {
         msg = "SWARM INCOMING";
     }
 
     // Check Boss Warning (210s cycle)
-    float bossRemaining = 210.0f - globalVariables.eventState.bossCycleTimer;
+    f32 bossRemaining = 210.0f - globalVariables.eventState.bossCycleTimer;
     if (bossRemaining > 0 && bossRemaining <= 5.0f) {
         msg = "BOSS INCOMING";
     }
 
     if (msg) {
         alpha = fabsf(sinf(GetTime() * 10.0f));
-        int fontSize = 60;
-        int textWidth = MeasureText(msg, fontSize);
+        i32 fontSize = 60;
+        i32 textWidth = MeasureText(msg, fontSize);
         DrawText(msg, SCREEN_WIDTH/2 - textWidth/2, SCREEN_HEIGHT/2 - 100, fontSize, Fade(RED, alpha));
     }
 }
@@ -686,46 +686,46 @@ void HUD_UpdateData()
 void HUD_Draw()
 {
     // 1. XP Bar (Top of screen)
-    float xpPercentage = globalVariables.playerStats.currentXP / globalVariables.playerStats.nextLevelXP;
+    f32 xpPercentage = globalVariables.playerStats.currentXP / globalVariables.playerStats.nextLevelXP;
     
     Color xpColor = BLUE;
     if (globalVariables.levelUpState.bShowLevelUp) {
         xpPercentage = 1.0f;
-        float hue = (float)((int)(GetTime() * 300) % 360);
+        f32 hue = (f32)((i32)(GetTime() * 300) % 360);
         xpColor = ColorFromHSV(hue, 0.8f, 0.9f);
     }
 
     DrawRectangle(0, 0, SCREEN_WIDTH, 30, DARKGRAY);
-    DrawRectangle(0, 0, (int)(SCREEN_WIDTH * xpPercentage), 30, xpColor);
+    DrawRectangle(0, 0, (i32)(SCREEN_WIDTH * xpPercentage), 30, xpColor);
 
     const char *levelText = TextFormat("LEVEL %d", globalVariables.playerStats.level);
-    int levelTextWidth = MeasureText(levelText, 20);
+    i32 levelTextWidth = MeasureText(levelText, 20);
     DrawText(levelText, (SCREEN_WIDTH / 2) - (levelTextWidth / 2), 5, 20, WHITE);
 
     // 2. Health Bar (Left corner, below XP)
-    int hpBarWidth = 350;
-    int hpBarHeight = 35;
-    int padding = 20;
-    int hpY = 30 + padding;
+    i32 hpBarWidth = 350;
+    i32 hpBarHeight = 35;
+    i32 padding = 20;
+    i32 hpY = 30 + padding;
 
     Entity *player = Global_GetPlayer();
-    float hpPercentage = player->character.health / player->character.maxHealth;
+    f32 hpPercentage = player->character.health / player->character.maxHealth;
 
     DrawRectangle(padding, hpY, hpBarWidth, hpBarHeight, DARKGRAY);
-    DrawRectangle(padding, hpY, (int)(hpBarWidth * hpPercentage), hpBarHeight, RED);
+    DrawRectangle(padding, hpY, (i32)(hpBarWidth * hpPercentage), hpBarHeight, RED);
     DrawRectangleLines(padding, hpY, hpBarWidth, hpBarHeight, BLACK);
 
     const char *hpText = TextFormat("%.0f / %.0f", player->character.health, player->character.maxHealth);
-    int hpTextWidth = MeasureText(hpText, 20);
+    i32 hpTextWidth = MeasureText(hpText, 20);
     DrawText(hpText, padding + (hpBarWidth / 2) - (hpTextWidth / 2), hpY + 7, 20, WHITE);
 
     // 3. Timer (Right corner)
-    int minutes = (int)globalVariables.gameTimer / 60;
-    int seconds = (int)globalVariables.gameTimer % 60;
+    i32 minutes = (i32)globalVariables.gameTimer / 60;
+    i32 seconds = (i32)globalVariables.gameTimer % 60;
     const char *timerText = TextFormat("%02d:%02d", minutes, seconds);
-    int timerTextWidth = MeasureText(timerText, 40);
-    int timerX = SCREEN_WIDTH - padding - timerTextWidth;
-    int timerY = hpY;
+    i32 timerTextWidth = MeasureText(timerText, 40);
+    i32 timerX = SCREEN_WIDTH - padding - timerTextWidth;
+    i32 timerY = hpY;
 
     // Draw text with outline/border
     DrawText(timerText, timerX - 2, timerY - 2, 40, BLACK);
@@ -740,24 +740,24 @@ void HUD_Draw()
 
 void HUD_DrawPowerUps()
 {
-    int activeCount = 0;
-    for (int i = 0; i < MAX_ACTIVE_POWERUPS; i++) {
+    i32 activeCount = 0;
+    for (i32 i = 0; i < MAX_ACTIVE_POWERUPS; i++) {
         if (globalVariables.activePowerUps[i].bIsActive) activeCount++;
     }
     if (activeCount == 0) return;
 
-    int iconSize = 40;
-    int spacing = 15;
-    int totalWidth = (activeCount * iconSize) + ((activeCount - 1) * spacing);
-    int startX = (SCREEN_WIDTH / 2) - (totalWidth / 2);
-    int startY = 50;
+    i32 iconSize = 40;
+    i32 spacing = 15;
+    i32 totalWidth = (activeCount * iconSize) + ((activeCount - 1) * spacing);
+    i32 startX = (SCREEN_WIDTH / 2) - (totalWidth / 2);
+    i32 startY = 50;
 
-    int drawn = 0;
-    for (int i = 0; i < MAX_ACTIVE_POWERUPS; i++) {
+    i32 drawn = 0;
+    for (i32 i = 0; i < MAX_ACTIVE_POWERUPS; i++) {
         if (!globalVariables.activePowerUps[i].bIsActive) continue;
 
         ActivePowerUp* powerUp = &globalVariables.activePowerUps[i];
-        int x = startX + (drawn * (iconSize + spacing));
+        i32 x = startX + (drawn * (iconSize + spacing));
         
         Color c = WHITE;
         const char* label = "";
@@ -771,10 +771,10 @@ void HUD_DrawPowerUps()
         DrawRectangleLines(x, startY, iconSize, iconSize, c);
         
         const char* timeText = TextFormat("%.0fs", powerUp->remainingTime);
-        int timeW = MeasureText(timeText, 20);
+        i32 timeW = MeasureText(timeText, 20);
         DrawText(timeText, x + (iconSize/2) - (timeW/2), startY + iconSize + 5, 20, WHITE);
         
-        int labelW = MeasureText(label, 20);
+        i32 labelW = MeasureText(label, 20);
         DrawText(label, x + (iconSize/2) - (labelW/2), startY + (iconSize/2) - 10, 20, c);
 
         drawn++;
@@ -786,10 +786,10 @@ void HUD_DrawPickupNotification()
     if (globalVariables.hudEventTimer <= 0) return;
 
     // Use a large bold font style (using default font for now but sized up)
-    int fontSize = 50;
-    int textWidth = MeasureText(globalVariables.hudEventMessage, fontSize);
-    int x = (SCREEN_WIDTH - textWidth) / 2;
-    int y = 150; // Positioned below the timer/xp bar
+    i32 fontSize = 50;
+    i32 textWidth = MeasureText(globalVariables.hudEventMessage, fontSize);
+    i32 x = (SCREEN_WIDTH - textWidth) / 2;
+    i32 y = 150; // Positioned below the timer/xp bar
 
     // Draw Drop Shadow
     DrawText(globalVariables.hudEventMessage, x + 3, y + 3, fontSize, (Color){ 0, 0, 0, (unsigned char)(255 * (globalVariables.hudEventTimer / 1.5f)) });
@@ -801,19 +801,19 @@ void HUD_DrawInventory()
 {
     DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, ColorAlpha(BLACK, 0.85f));
 
-    int padding = 150;
-    int colWidth = (SCREEN_WIDTH - (padding * 2)) / 2;
-    int startY = 200;
+    i32 padding = 150;
+    i32 colWidth = (SCREEN_WIDTH - (padding * 2)) / 2;
+    i32 startY = 200;
 
     // Left Column: Equipment
-    int leftX = padding;
+    i32 leftX = padding;
     DrawText("EQUIPMENT", leftX, startY - 60, 45, GOLD);
     
-    int currentY = startY;
+    i32 currentY = startY;
     DrawText("WEAPONS", leftX, currentY, 30, GRAY);
     currentY += 45;
 
-    for (int i = 0; i < MAX_WEAPON_CAPACITY; i++) {
+    for (i32 i = 0; i < MAX_WEAPON_CAPACITY; i++) {
         WeaponData* weapon = &globalVariables.inventory.weaponDatas[i];
         if (weapon->level > 0) {
             DrawText(TextFormat("Lv.%d %s", weapon->level, Weapon_GetWeaponName(weapon->weaponType)), leftX + 20, currentY, 32, WHITE);
@@ -825,7 +825,7 @@ void HUD_DrawInventory()
     DrawText("RELICS", leftX, currentY, 30, GRAY);
     currentY += 45;
 
-    for (int i = 0; i < MAX_RELIC_CAPACITY; i++) {
+    for (i32 i = 0; i < MAX_RELIC_CAPACITY; i++) {
         RelicData* relic = &globalVariables.inventory.relicDatas[i];
         if (relic->level > 0) {
             DrawText(TextFormat("Lv.%d %s", relic->level, Relic_GetRelicName(relic->relicType)), leftX + 20, currentY, 32, WHITE);
@@ -834,7 +834,7 @@ void HUD_DrawInventory()
     }
 
     // Right Column: Player Stats
-    int rightX = padding + colWidth;
+    i32 rightX = padding + colWidth;
     DrawText("PLAYER STATS", rightX, startY - 60, 45, GOLD);
     
     currentY = startY;
@@ -854,7 +854,7 @@ void HUD_DrawLevelUp()
 {
     // Brain Part: Handle Input
     bool selected = false;
-    int choice = -1;
+    i32 choice = -1;
 
     if (IsKeyPressed(KEY_ONE)) { choice = 0; selected = true; }
     if (IsKeyPressed(KEY_TWO)) { choice = 1; selected = true; }
@@ -864,9 +864,9 @@ void HUD_DrawLevelUp()
     if (IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_D) || IsGamepadButtonPressed(0, GAMEPAD_BUTTON_LEFT_FACE_RIGHT)) globalVariables.levelUpState.selectedIndex++;
     
     // Analog stick selection (single press feel)
-    static float axisTimer = 0.0f;
+    static f32 axisTimer = 0.0f;
     if (IsGamepadAvailable(0)) {
-        float ax = GetGamepadAxisMovement(0, GAMEPAD_AXIS_LEFT_X);
+        f32 ax = GetGamepadAxisMovement(0, GAMEPAD_AXIS_LEFT_X);
         if (fabsf(ax) > 0.5f && axisTimer <= 0) {
             if (ax > 0) globalVariables.levelUpState.selectedIndex++;
             else globalVariables.levelUpState.selectedIndex--;
@@ -905,19 +905,19 @@ void HUD_DrawLevelUp()
 
     DrawText("LEVEL UP", SCREEN_WIDTH/2 - MeasureText("LEVEL UP", 80)/2, 100, 80, GOLD);
 
-    int cardWidth = 450;
-    int cardHeight = 600;
-    int spacing = 60;
-    int totalWidth = (cardWidth * 3) + (spacing * 2);
-    int startX = (SCREEN_WIDTH - totalWidth) / 2;
-    int startY = 250;
+    i32 cardWidth = 450;
+    i32 cardHeight = 600;
+    i32 spacing = 60;
+    i32 totalWidth = (cardWidth * 3) + (spacing * 2);
+    i32 startX = (SCREEN_WIDTH - totalWidth) / 2;
+    i32 startY = 250;
 
-    for (int i = 0; i < 3; i++) {
+    for (i32 i = 0; i < 3; i++) {
         UpgradeOption* opt = &globalVariables.levelUpState.options[i];
         if (opt->type == (UpgradeType)-1) continue;
 
-        int x = startX + i * (cardWidth + spacing);
-        Rectangle cardRect = { (float)x, (float)startY, (float)cardWidth, (float)cardHeight };
+        i32 x = startX + i * (cardWidth + spacing);
+        Rectangle cardRect = { (f32)x, (f32)startY, (f32)cardWidth, (f32)cardHeight };
 
         bool isSelected = (globalVariables.levelUpState.selectedIndex == i);
         Color cardBg = isSelected ? (Color){40, 40, 45, 255} : (Color){25, 25, 30, 255};
@@ -953,8 +953,8 @@ void HUD_DrawLevelUp()
         }
 
         // Draw Name
-        int nameSize = 35;
-        int nameWidth = MeasureText(name, nameSize);
+        i32 nameSize = 35;
+        i32 nameWidth = MeasureText(name, nameSize);
         DrawText(name, x + cardWidth/2 - nameWidth/2, startY + 40, nameSize, themeColor);
 
         // Draw Level
@@ -966,7 +966,7 @@ void HUD_DrawLevelUp()
         DrawText(typeText, x + cardWidth/2 - MeasureText(typeText, 20)/2, startY + 120, 20, DARKGRAY);
 
         // Draw Description / Stats
-        int descY = startY + 180;
+        i32 descY = startY + 180;
         if (opt->level == 1) {
             const char* desc = "";
             if (opt->type == UPGRADE_TYPE_WEAPON) {
@@ -1005,7 +1005,7 @@ void HUD_DrawLevelUp()
                     case WEAPON_TYPE_DEATH_AURA: oldD = &wlds->deathAura[opt->level-2]; newD = &wlds->deathAura[opt->level-1]; break;
                 }
                 
-                int bY = descY;
+                i32 bY = descY;
                 if (newD->damage != oldD->damage) { DrawText(TextFormat("- Damage: %.1f -> %.1f", oldD->damage, newD->damage), x + 30, bY, 20, WHITE); bY += 30; }
                 if (newD->delayBetweenAttacks != oldD->delayBetweenAttacks) { DrawText(TextFormat("- Cooldown: %.1fs -> %.1fs", oldD->delayBetweenAttacks, newD->delayBetweenAttacks), x + 30, bY, 20, WHITE); bY += 30; }
                 if (newD->projectileAmount != oldD->projectileAmount) { DrawText(TextFormat("- Amount: %d -> %d", oldD->projectileAmount, newD->projectileAmount), x + 30, bY, 20, WHITE); bY += 30; }
@@ -1022,7 +1022,7 @@ void HUD_DrawLevelUp()
                     if (newD->deathAura.size != oldD->deathAura.size) DrawText(TextFormat("- Size: %.0f -> %.0f", oldD->deathAura.size, newD->deathAura.size), x + 30, bY, 20, WHITE);
                 }
             } else {
-                float mult = globalVariables.InventoryDefinitions.RelicDefinitions[opt->relic].multiplier;
+                f32 mult = globalVariables.InventoryDefinitions.RelicDefinitions[opt->relic].multiplier;
                 DrawText(TextFormat("- Effect: +%.0f%% per level", mult * 100.0f), x + 30, descY, 22, WHITE);
             }
 
@@ -1033,17 +1033,17 @@ void HUD_GenerateLevelUpOptions()
 {
     // Collect all candidates
     UpgradeOption candidates[WEAPON_TYPE_COUNT + RELIC_TYPE_COUNT];
-    int count = 0;
+    i32 count = 0;
 
     // Check current weapon count
-    int currentWeaponCount = 0;
-    for (int i = 0; i < MAX_WEAPON_CAPACITY; i++) if (globalVariables.inventory.weaponDatas[i].level > 0) currentWeaponCount++;
+    i32 currentWeaponCount = 0;
+    for (i32 i = 0; i < MAX_WEAPON_CAPACITY; i++) if (globalVariables.inventory.weaponDatas[i].level > 0) currentWeaponCount++;
 
     // Weapon Candidates
-    for (int i = 0; i < WEAPON_TYPE_COUNT; i++) {
+    for (i32 i = 0; i < WEAPON_TYPE_COUNT; i++) {
         WeaponType type = (WeaponType)i;
-        int invIdx = -1;
-        for (int j = 0; j < MAX_WEAPON_CAPACITY; j++) {
+        i32 invIdx = -1;
+        for (i32 j = 0; j < MAX_WEAPON_CAPACITY; j++) {
             if (globalVariables.inventory.weaponDatas[j].level > 0 && globalVariables.inventory.weaponDatas[j].weaponType == type) {
                 invIdx = j; break;
             }
@@ -1067,14 +1067,14 @@ void HUD_GenerateLevelUpOptions()
     }
 
     // Check current relic count
-    int currentRelicCount = 0;
-    for (int i = 0; i < MAX_RELIC_CAPACITY; i++) if (globalVariables.inventory.relicDatas[i].level > 0) currentRelicCount++;
+    i32 currentRelicCount = 0;
+    for (i32 i = 0; i < MAX_RELIC_CAPACITY; i++) if (globalVariables.inventory.relicDatas[i].level > 0) currentRelicCount++;
 
     // Relic Candidates
-    for (int i = 0; i < RELIC_TYPE_COUNT; i++) {
+    for (i32 i = 0; i < RELIC_TYPE_COUNT; i++) {
         RelicType type = (RelicType)i;
-        int invIdx = -1;
-        for (int j = 0; j < MAX_RELIC_CAPACITY; j++) {
+        i32 invIdx = -1;
+        for (i32 j = 0; j < MAX_RELIC_CAPACITY; j++) {
             if (globalVariables.inventory.relicDatas[j].level > 0 && globalVariables.inventory.relicDatas[j].relicType == type) {
                 invIdx = j; break;
             }
@@ -1096,9 +1096,9 @@ void HUD_GenerateLevelUpOptions()
     }
 
     // Shuffle and pick 3
-    for (int i = 0; i < 3; i++) {
+    for (i32 i = 0; i < 3; i++) {
         if (count > 0) {
-            int idx = GetRandomValue(0, count - 1);
+            i32 idx = GetRandomValue(0, count - 1);
             globalVariables.levelUpState.options[i] = candidates[idx];
             // Remove from candidates to avoid duplicates
             candidates[idx] = candidates[count - 1];
@@ -1163,7 +1163,7 @@ PlayerStats Player_GeneratePlayerStats()
 
     return playerStats;
 }
-void Player_ProcessMovement(Entity *player, float deltaTime)
+void Player_ProcessMovement(Entity *player, f32 deltaTime)
 {
     if (!player || !player->bIsActive) return;
     if (player->character.bIsDead) {
@@ -1187,7 +1187,7 @@ void Player_ProcessMovement(Entity *player, float deltaTime)
 
     Player_AnimateMovement(player, deltaTime);
 }
-void Player_AnimateMovement(Entity *player, float deltaTime)
+void Player_AnimateMovement(Entity *player, f32 deltaTime)
 {
     if (Vector2Length(player->velocity) > 0) {
         player->animatedSprite.frameTimer += deltaTime;
@@ -1213,7 +1213,7 @@ void Player_AnimateMovement(Entity *player, float deltaTime)
 //~ End of Player Implementation
 
 //~ Begin of Popup Implementation
-Entity Popup_SpawnDamagePopup(Vector2 pos, float amount) {
+Entity Popup_SpawnDamagePopup(Vector2 pos, f32 amount) {
     Entity popup = {0};
     popup.type = ENTITY_TYPE_DAMAGE_POPUP;
     popup.bIsActive = true;
@@ -1224,8 +1224,8 @@ Entity Popup_SpawnDamagePopup(Vector2 pos, float amount) {
     Global_AddEntity(&popup);
     return popup;
 }
-void Popup_UpdateAll(float deltaTime) {
-    for (int i = 0; i < globalVariables.lastEntityIndex; i++) {
+void Popup_UpdateAll(f32 deltaTime) {
+    for (i32 i = 0; i < globalVariables.lastEntityIndex; i++) {
         Entity* popup = &globalVariables.entities[i];
         if (!popup->bIsActive || popup->type != ENTITY_TYPE_DAMAGE_POPUP) continue;
 
@@ -1235,17 +1235,17 @@ void Popup_UpdateAll(float deltaTime) {
             continue;
         }
 
-        float t = popup->damagePopup.timer / 0.7f;
+        f32 t = popup->damagePopup.timer / 0.7f;
         if (popup->damagePopup.timer < 0.2f) {
             // 0 to 0.2: upward movement and scale 1 to 1.25
-            float subt = popup->damagePopup.timer / 0.2f;
+            f32 subt = popup->damagePopup.timer / 0.2f;
             popup->position.y -= 100.0f * deltaTime;
             popup->scale.x = 1.0f + (0.25f * subt);
             popup->scale.y = popup->scale.x;
         } else {
             // 0.2 to 0.7: scale 1.25 to 0.5
-            float subt = (popup->damagePopup.timer - 0.2f) / 0.5f;
-            float ease = (float)sin(subt * PI * 0.5f); // Ease Out
+            f32 subt = (popup->damagePopup.timer - 0.2f) / 0.5f;
+            f32 ease = (f32)sin(subt * PI * 0.5f); // Ease Out
             popup->scale.x = 1.25f - (0.75f * ease);
             popup->scale.y = popup->scale.x;
         }
@@ -1254,7 +1254,7 @@ void Popup_UpdateAll(float deltaTime) {
 //~ End of Popup Implementation
 
 //~ Begin of Projectile Implementation
-Entity Projectile_Spawn(ProjectileType type, Vector2 pos, Vector2 vel, float damage, float lifeTime, uint8_t penetration)
+Entity Projectile_Spawn(ProjectileType type, Vector2 pos, Vector2 vel, f32 damage, f32 lifeTime, u8 penetration)
 {
     Entity projectile = {0};
     projectile.type = ENTITY_TYPE_PROJECTILE;
@@ -1264,13 +1264,13 @@ Entity Projectile_Spawn(ProjectileType type, Vector2 pos, Vector2 vel, float dam
     projectile.scale = (Vector2){1.0f, 1.0f};
     projectile.radius = 10.0f;
     projectile.projectile.projectileType = type;
-    float finalDamage = damage * globalVariables.playerStats.damageMultiplier;
+    f32 finalDamage = damage * globalVariables.playerStats.damageMultiplier;
     if (globalVariables.activePowerUps[POWERUP_TYPE_DOUBLE_TROUBLE].bIsActive) finalDamage *= 2.0f;
     projectile.projectile.damage = finalDamage;
     projectile.projectile.lifeTime = lifeTime;
     projectile.projectile.penetration = penetration;
     if (type == PROJECTILE_TYPE_CRYSTAL_SHARD || type == PROJECTILE_TYPE_NATURE_SPIKE) {
-        for (int i = 0; i < 16; i++) projectile.projectile.hitTracking.hitIds[i] = 65535;
+        for (i32 i = 0; i < 16; i++) projectile.projectile.hitTracking.hitIds[i] = 65535;
     } else {
         projectile.projectile.explosive.explosionDamageMultiplier = 1.0f;
         projectile.projectile.explosive.explosionRadius = 0.0f;
@@ -1278,10 +1278,10 @@ Entity Projectile_Spawn(ProjectileType type, Vector2 pos, Vector2 vel, float dam
     if (type == PROJECTILE_TYPE_NATURE_SPIKE) projectile.projectile.timer = 0.0f; // Reset timer for first hit
     return projectile;
 }
-void Projectile_ProcessAllMovement(float deltaTime)
+void Projectile_ProcessAllMovement(f32 deltaTime)
 {
     Entity* player = Global_GetPlayer();
-    for (int i = 0; i < globalVariables.lastEntityIndex; i++) {
+    for (i32 i = 0; i < globalVariables.lastEntityIndex; i++) {
         Entity* projectile = &globalVariables.entities[i];
         if (!projectile->bIsActive || projectile->type != ENTITY_TYPE_PROJECTILE) continue;
 
@@ -1293,7 +1293,7 @@ void Projectile_ProcessAllMovement(float deltaTime)
                 projectile->projectile.timer -= deltaTime;
                 if (projectile->projectile.timer <= 0) {
                     projectile->projectile.timer = 0.2f;
-                    for (int k = 0; k < 16; k++) projectile->projectile.hitTracking.hitIds[k] = 65535;
+                    for (i32 k = 0; k < 16; k++) projectile->projectile.hitTracking.hitIds[k] = 65535;
                 }
                 break;
             case PROJECTILE_TYPE_CRYSTAL_SHARD:
@@ -1319,8 +1319,8 @@ void Projectile_ProcessAllMovement(float deltaTime)
                 projectile->position = player->position; 
                 projectile->projectile.timer -= deltaTime;
                 if (projectile->projectile.timer <= 0) {
-                    uint8_t level = 1;
-                    for (int w = 0; w < MAX_WEAPON_CAPACITY; w++) {
+                    u8 level = 1;
+                    for (i32 w = 0; w < MAX_WEAPON_CAPACITY; w++) {
                         if (globalVariables.inventory.weaponDatas[w].level > 0 && globalVariables.inventory.weaponDatas[w].weaponType == WEAPON_TYPE_DEATH_AURA) {
                             level = globalVariables.inventory.weaponDatas[w].level;
                             break;
@@ -1329,7 +1329,7 @@ void Projectile_ProcessAllMovement(float deltaTime)
                     WeaponDefinition* weaponDef = &globalVariables.InventoryDefinitions.weaponLevelsDefinition.deathAura[level-1];
                     projectile->projectile.timer = weaponDef->delayBetweenAttacks / globalVariables.playerStats.attackSpeedMultiplier;
                     
-                    for (int j = 0; j < globalVariables.lastEntityIndex; j++) {
+                    for (i32 j = 0; j < globalVariables.lastEntityIndex; j++) {
                         Entity* enemy = &globalVariables.entities[j];
                         if (enemy->bIsActive && enemy->type == ENTITY_TYPE_ENEMY) {
                             if (CheckCollisionCircles(projectile->position, projectile->radius, enemy->position, enemy->radius)) {
@@ -1346,7 +1346,7 @@ void Projectile_ProcessAllMovement(float deltaTime)
             projectile->projectile.projectileType != PROJECTILE_TYPE_BOMB &&
             projectile->projectile.projectileType != PROJECTILE_TYPE_DEATH_AURA) {
             
-            for (int j = 0; j < globalVariables.lastEntityIndex; j++) {
+            for (i32 j = 0; j < globalVariables.lastEntityIndex; j++) {
                 Entity* enemy = &globalVariables.entities[j];
                 if (!enemy->bIsActive || enemy->type != ENTITY_TYPE_ENEMY) continue;
 
@@ -1354,24 +1354,24 @@ void Projectile_ProcessAllMovement(float deltaTime)
                     bool alreadyHit = false;
                     if (projectile->projectile.projectileType == PROJECTILE_TYPE_CRYSTAL_SHARD || 
                         projectile->projectile.projectileType == PROJECTILE_TYPE_NATURE_SPIKE) {
-                        for (int k = 0; k < 16; k++) {
+                        for (i32 k = 0; k < 16; k++) {
                             if (projectile->projectile.hitTracking.hitIds[k] == enemy->id) { alreadyHit = true; break; }
                         }
                     }
 
                     if (!alreadyHit) {
-                        float dmgApplied = projectile->projectile.damage;
+                        f32 dmgApplied = projectile->projectile.damage;
                         bool isAOE = (projectile->projectile.projectileType == PROJECTILE_TYPE_NATURE_SPIKE);
                         Global_DealDamageToEnemy(j, dmgApplied, isAOE);
 
                         if (projectile->projectile.projectileType == PROJECTILE_TYPE_CRYSTAL_SHARD || 
                             projectile->projectile.projectileType == PROJECTILE_TYPE_NATURE_SPIKE) {
-                            for (int k = 15; k > 0; k--) projectile->projectile.hitTracking.hitIds[k] = projectile->projectile.hitTracking.hitIds[k-1];
+                            for (i32 k = 15; k > 0; k--) projectile->projectile.hitTracking.hitIds[k] = projectile->projectile.hitTracking.hitIds[k-1];
                             projectile->projectile.hitTracking.hitIds[0] = enemy->id;
                         }
 
                         if (projectile->projectile.projectileType == PROJECTILE_TYPE_FIREBALL) {
-                             float expDmg = projectile->projectile.damage * projectile->projectile.explosive.explosionDamageMultiplier;
+                             f32 expDmg = projectile->projectile.damage * projectile->projectile.explosive.explosionDamageMultiplier;
                              Entity explosion = Projectile_Spawn(PROJECTILE_TYPE_EXPLOSION, projectile->position, (Vector2){0,0}, expDmg, 0.2f, 255);
                              explosion.radius = projectile->projectile.explosive.explosionRadius; 
                              Global_AddEntity(&explosion);
@@ -1392,7 +1392,7 @@ void Projectile_ProcessAllMovement(float deltaTime)
                 }
             }
         } else if (projectile->projectile.projectileType == PROJECTILE_TYPE_EXPLOSION) {
-            for (int j = 0; j < globalVariables.lastEntityIndex; j++) {
+            for (i32 j = 0; j < globalVariables.lastEntityIndex; j++) {
                 Entity* enemy = &globalVariables.entities[j];
                 if (!enemy->bIsActive || enemy->type != ENTITY_TYPE_ENEMY) continue;
                 if (CheckCollisionCircles(projectile->position, projectile->radius, enemy->position, enemy->radius)) {
@@ -1419,7 +1419,7 @@ void Relic_ApplyEffects() {
     Entity* player = Global_GetPlayer();
     if (!player) return;
 
-    float oldMaxHealth = player->character.maxHealth;
+    f32 oldMaxHealth = player->character.maxHealth;
 
     // Reset multipliers
     globalVariables.playerStats.healthMultiplier = 1.0f;
@@ -1430,11 +1430,11 @@ void Relic_ApplyEffects() {
     globalVariables.playerStats.lifeStealMultiplier = 0.0f;
     globalVariables.playerStats.xpMultiplier = 1.0f;
 
-    for (int i = 0; i < MAX_RELIC_CAPACITY; i++) {
+    for (i32 i = 0; i < MAX_RELIC_CAPACITY; i++) {
         RelicData* relic = &globalVariables.inventory.relicDatas[i];
         if (relic->level == 0) continue;
 
-        float bonus = (float)relic->level * globalVariables.InventoryDefinitions.RelicDefinitions[relic->relicType].multiplier;
+        f32 bonus = (f32)relic->level * globalVariables.InventoryDefinitions.RelicDefinitions[relic->relicType].multiplier;
 
         switch (relic->relicType) {
             case RELIC_TYPE_HEALTH: globalVariables.playerStats.healthMultiplier += bonus; break;
@@ -1460,7 +1460,7 @@ void Relic_ApplyEffects() {
     player->character.speed = 400.0f * globalVariables.playerStats.movementSpeedMultiplier;
 }
 void Relic_AddRelic(RelicType relicType) {
-    for (int i = 0; i < MAX_RELIC_CAPACITY; i++) {
+    for (i32 i = 0; i < MAX_RELIC_CAPACITY; i++) {
         if (globalVariables.inventory.relicDatas[i].level > 0 && 
             globalVariables.inventory.relicDatas[i].relicType == relicType) {
             if (globalVariables.inventory.relicDatas[i].level < MAX_RELIC_LEVEL) {
@@ -1472,7 +1472,7 @@ void Relic_AddRelic(RelicType relicType) {
     }
 
     // Add new relic
-    for (int i = 0; i < MAX_RELIC_CAPACITY; i++) {
+    for (i32 i = 0; i < MAX_RELIC_CAPACITY; i++) {
         if (globalVariables.inventory.relicDatas[i].level == 0) {
             globalVariables.inventory.relicDatas[i].relicType = relicType;
             globalVariables.inventory.relicDatas[i].level = 1;
@@ -1497,7 +1497,7 @@ const char* Relic_GetRelicName(RelicType relicType)
 //~ End of Relic Implementation
 
 //~ Begin of XP Implementation
-void XP_GenerateXPCrystal(Vector2 position, float amount)
+void XP_GenerateXPCrystal(Vector2 position, f32 amount)
 {
     Entity crystal = {0};
     crystal.type = ENTITY_TYPE_XP_CRYSTAL;
@@ -1511,16 +1511,16 @@ void XP_GenerateXPCrystal(Vector2 position, float amount)
     crystal.xpCrystal.bIsMagnetized = false;
     Global_AddEntity(&crystal);
 }
-void XP_MoveCrystals(float deltaTime)
+void XP_MoveCrystals(f32 deltaTime)
 {
     Entity* player = Global_GetPlayer();
     if (!player || player->character.bIsDead) return;
 
-    for (int i = 0; i < globalVariables.lastEntityIndex; i++) {
+    for (i32 i = 0; i < globalVariables.lastEntityIndex; i++) {
         Entity* crystal = &globalVariables.entities[i];
         if (!crystal->bIsActive || crystal->type != ENTITY_TYPE_XP_CRYSTAL) continue;
 
-        float dist = Vector2Distance(crystal->position, player->position);
+        f32 dist = Vector2Distance(crystal->position, player->position);
         
         if (!crystal->xpCrystal.bIsMagnetized && dist < 100.0f) {
             crystal->xpCrystal.bIsMagnetized = true;
@@ -1531,8 +1531,8 @@ void XP_MoveCrystals(float deltaTime)
             Vector2 dir = Vector2Normalize(Vector2Subtract(player->position, crystal->position));
             
             // Speed up over time
-            float accel = 1200.0f; 
-            float currentSpeed = Vector2Length(crystal->velocity) + (accel * deltaTime);
+            f32 accel = 1200.0f; 
+            f32 currentSpeed = Vector2Length(crystal->velocity) + (accel * deltaTime);
             if (currentSpeed > 700.0f) currentSpeed = 700.0f;
             if (currentSpeed < 200.0f) currentSpeed = 200.0f; // Minimum move speed
 
@@ -1546,7 +1546,7 @@ void XP_MoveCrystals(float deltaTime)
         }
     }
 }
-void XP_GrantXP(float amount)
+void XP_GrantXP(f32 amount)
 {
     globalVariables.playerStats.currentXP += amount * globalVariables.playerStats.xpMultiplier;
     Audio_PlaySoundVar(ASSET_SOUND_TYPE_XP_GAIN, true);
@@ -1561,7 +1561,7 @@ void XP_LevelUp()
     globalVariables.playerStats.level++;
     
     // nextLevelXP = 200 * (1.07)^(level - 1)
-    globalVariables.playerStats.nextLevelXP = 200.0f * powf(1.07f, (float)(globalVariables.playerStats.level - 1));
+    globalVariables.playerStats.nextLevelXP = 200.0f * powf(1.07f, (f32)(globalVariables.playerStats.level - 1));
     
     Audio_PlaySoundVar(ASSET_SOUND_TYPE_LEVEL_UP, false);
     
@@ -1587,7 +1587,7 @@ void Render_DrawMap()
 
     // Draw Map Borders (Red boundary)
     DrawRectangleLinesEx(
-        (Rectangle){-MAP_HALF_SIZE, -MAP_HALF_SIZE, MAP_SIZE, MAP_SIZE}, 10.0f,
+        (Rectangle){-MAP_HALF_SIZE, -MAP_HALF_SIZE, MAP_HALF_SIZE * 2, MAP_HALF_SIZE * 2}, 10.0f,
         RED);
 }
 void Render_DrawEntity(Entity *entity)
@@ -1655,50 +1655,50 @@ void Render_DrawEntity(Entity *entity)
     Vector2 origin = {0, 0};
 
     if (entity->visualType == VISUAL_TYPE_ANIMATED_SPRITE) {
-        float frameWidth =
-            (float)texture.width / (entity->animatedSprite.frameCount + 1);
+        f32 frameWidth =
+            (f32)texture.width / (entity->animatedSprite.frameCount + 1);
         source =
             (Rectangle){entity->animatedSprite.currentFrame * frameWidth, 0,
                         entity->animatedSprite.flipX ? -frameWidth : frameWidth,
-                        (float)texture.height};
+                        (f32)texture.height};
         origin = (Vector2){(frameWidth * entity->scale.x) / 2.0f,
-                        (float)texture.height * entity->scale.y};
+                        (f32)texture.height * entity->scale.y};
     } else {
         bool flipX = (entity->visualType == VISUAL_TYPE_ANIMATED_STATIC_SPRITE) 
                      ? entity->animatedStaticSprite.flipX 
                      : entity->sprite.flipX;
         
         source = (Rectangle){0, 0,
-                            flipX ? -(float)texture.width : (float)texture.width,
-                            (float)texture.height};
-        origin = (Vector2){((float)texture.width * entity->scale.x) / 2.0f,
-                        (float)texture.height * entity->scale.y};
+                            flipX ? -(f32)texture.width : (f32)texture.width,
+                            (f32)texture.height};
+        origin = (Vector2){((f32)texture.width * entity->scale.x) / 2.0f,
+                        (f32)texture.height * entity->scale.y};
     }
 
-    float bounceOffset = 0.0f;
+    f32 bounceOffset = 0.0f;
     if (entity->visualType == VISUAL_TYPE_ANIMATED_STATIC_SPRITE) {
-        float t = entity->animatedStaticSprite.animationTimer / entity->animatedStaticSprite.animationDuration;
+        f32 t = entity->animatedStaticSprite.animationTimer / entity->animatedStaticSprite.animationDuration;
         bounceOffset = sinf(t * 2.0f * PI) * 10.0f; // 10 pixel amplitude
     }
 
     Rectangle dest = {entity->position.x, entity->position.y + bounceOffset,
                         (source.width < 0 ? -source.width : source.width) *
                             entity->scale.x,
-                        (float)texture.height * entity->scale.y};
+                        (f32)texture.height * entity->scale.y};
 
     // Damage Flash Logic
-    float flashIntensity = 0.0f;
+    f32 flashIntensity = 0.0f;
     if (entity->type == ENTITY_TYPE_ENEMY && entity->enemyCharacter.flashTimer > 0) {
         flashIntensity = 1.0f;
     } else if (entity->type == ENTITY_TYPE_PLAYER && entity->character.flashTimer > 0) {
         // Flash every 0.1s
-        if (((int)(entity->character.flashTimer * 10) % 2) == 0) flashIntensity = 1.0f;
+        if (((i32)(entity->character.flashTimer * 10) % 2) == 0) flashIntensity = 1.0f;
     }
 
     // Death Fade Logic
     if (entity->type == ENTITY_TYPE_PLAYER && entity->character.bIsDead) {
         if (entity->character.deathFadeTimer <= 0) return; // Completely gone
-        float alpha = entity->character.deathFadeTimer / 2.0f;
+        f32 alpha = entity->character.deathFadeTimer / 2.0f;
         tint = ColorAlpha(tint, alpha);
     }
 
@@ -1751,21 +1751,21 @@ void Render_DrawProjectile(Entity *entity)
 
 void Render_DrawAllEntitiesSorted()
 {
-    static int bucketCounts[BUCKET_COUNT];
-    static int bucketOffsets[BUCKET_COUNT];
-    static uint16_t sortedIndices[MAX_ENTITIES_AMOUNT];
+    static i32 bucketCounts[BUCKET_COUNT];
+    static i32 bucketOffsets[BUCKET_COUNT];
+    static u16 sortedIndices[MAX_ENTITIES_AMOUNT];
 
     // Clear bucket counts
-    for (int i = 0; i < BUCKET_COUNT; i++)
+    for (i32 i = 0; i < BUCKET_COUNT; i++)
         bucketCounts[i] = 0;
 
     // Pass 1: Count entities per bucket
-    for (int i = 0; i < globalVariables.lastEntityIndex; i++) {
+    for (i32 i = 0; i < globalVariables.lastEntityIndex; i++) {
         if (!globalVariables.entities[i].bIsActive || globalVariables.entities[i].type == ENTITY_TYPE_DAMAGE_POPUP)
             continue;
 
-        float y = globalVariables.entities[i].position.y;
-        int bucket = (int)((y - MAP_Y_MIN) / (MAP_HEIGHT / BUCKET_COUNT));
+        f32 y = globalVariables.entities[i].position.y;
+        i32 bucket = (i32)((y - MAP_Y_MIN) / (MAP_HEIGHT / BUCKET_COUNT));
 
         if (bucket < 0)
             bucket = 0;
@@ -1777,22 +1777,22 @@ void Render_DrawAllEntitiesSorted()
 
     // Prefix sum to get bucket start positions
     bucketOffsets[0] = 0;
-    for (int i = 1; i < BUCKET_COUNT; i++) {
+    for (i32 i = 1; i < BUCKET_COUNT; i++) {
         bucketOffsets[i] = bucketOffsets[i - 1] + bucketCounts[i - 1];
     }
 
     // Pass 2: Fill sorted array
     // We use a temporary copy of offsets to keep track of insertion points
-    static int currentOffsets[BUCKET_COUNT];
-    for (int i = 0; i < BUCKET_COUNT; i++)
+    static i32 currentOffsets[BUCKET_COUNT];
+    for (i32 i = 0; i < BUCKET_COUNT; i++)
         currentOffsets[i] = bucketOffsets[i];
 
-    for (int i = 0; i < globalVariables.lastEntityIndex; i++) {
+    for (i32 i = 0; i < globalVariables.lastEntityIndex; i++) {
         if (!globalVariables.entities[i].bIsActive || globalVariables.entities[i].type == ENTITY_TYPE_DAMAGE_POPUP)
             continue;
 
-        float y = globalVariables.entities[i].position.y;
-        int bucket = (int)((y - MAP_Y_MIN) / (MAP_HEIGHT / BUCKET_COUNT));
+        f32 y = globalVariables.entities[i].position.y;
+        i32 bucket = (i32)((y - MAP_Y_MIN) / (MAP_HEIGHT / BUCKET_COUNT));
 
         if (bucket < 0)
             bucket = 0;
@@ -1809,11 +1809,11 @@ void Render_DrawAllEntitiesSorted()
     }
 
     // Pass 3: Draw in order
-    int totalActive = 0;
-    for (int i = 0; i < BUCKET_COUNT; i++)
+    i32 totalActive = 0;
+    for (i32 i = 0; i < BUCKET_COUNT; i++)
         totalActive += bucketCounts[i];
 
-    for (int i = 0; i < totalActive; i++) {
+    for (i32 i = 0; i < totalActive; i++) {
         Entity* entity = &globalVariables.entities[sortedIndices[i]];
         if (entity->type == ENTITY_TYPE_PROJECTILE) {
             if (entity->projectile.projectileType == PROJECTILE_TYPE_DEATH_AURA) continue;
@@ -1824,20 +1824,20 @@ void Render_DrawAllEntitiesSorted()
     }
 
     // Pass 4: Draw Popups on top of everything else in world space
-    for (int i = 0; i < globalVariables.lastEntityIndex; i++) {
+    for (i32 i = 0; i < globalVariables.lastEntityIndex; i++) {
         Entity* entity = &globalVariables.entities[i];
         if (!entity->bIsActive || entity->type != ENTITY_TYPE_DAMAGE_POPUP) continue;
 
         char dmgText[16];
         sprintf(dmgText, "%.0f", entity->damagePopup.amount);
-        float fontSize = 20.0f * entity->scale.x;
+        f32 fontSize = 20.0f * entity->scale.x;
         Vector2 size = MeasureTextEx(GetFontDefault(), dmgText, fontSize, 1.0f);
         Vector2 drawPos = { entity->position.x - size.x / 2.0f, entity->position.y - size.y / 2.0f };
         
-        float alpha = 1.0f;
+        f32 alpha = 1.0f;
         if (entity->damagePopup.timer > 0.2f) {
-            float t = (entity->damagePopup.timer - 0.2f) / 0.5f;
-            alpha = 1.0f - (float)sin(t * PI * 0.5f); // Ease Out Alpha
+            f32 t = (entity->damagePopup.timer - 0.2f) / 0.5f;
+            alpha = 1.0f - (f32)sin(t * PI * 0.5f); // Ease Out Alpha
         }
         Color textColor = ColorAlpha(YELLOW, alpha);
         Color outlineColor = ColorAlpha(BLACK, alpha);
@@ -1992,7 +1992,7 @@ SpawnerData Spawner_GenerateSpawnerData()
 
     return data;
 }
-void Spawner_ProcessSpawnLogic(float deltaTime)
+void Spawner_ProcessSpawnLogic(f32 deltaTime)
 {
     Entity* player = Global_GetPlayer();
     if (player->character.bIsDead) return;
@@ -2005,9 +2005,9 @@ void Spawner_ProcessSpawnLogic(float deltaTime)
         return;
 
     // Calculate Current Spawner Delay based on Progression and Events
-    int minutes = (int)(globalVariables.gameTimer / 60.0f);
-    float spawnerSpeedScale = powf(1.15f, (float)minutes);
-    float eventMultiplier = 1.0f;
+    i32 minutes = (i32)(globalVariables.gameTimer / 60.0f);
+    f32 spawnerSpeedScale = powf(1.15f, (f32)minutes);
+    f32 eventMultiplier = 1.0f;
     
     if (globalVariables.eventState.activeEventType == EVENT_TYPE_SWARM) {
         eventMultiplier = 3.0f; // +200%
@@ -2015,16 +2015,16 @@ void Spawner_ProcessSpawnLogic(float deltaTime)
         eventMultiplier = 1.5f; // +50%
     }
 
-    float actualDelay = (globalVariables.spawnerData.delayBetweenSpawns / spawnerSpeedScale) / eventMultiplier;
+    f32 actualDelay = (globalVariables.spawnerData.delayBetweenSpawns / spawnerSpeedScale) / eventMultiplier;
 
     // Reset Timer
     globalVariables.spawnerData.spawnTimer = actualDelay;
 
     // Phase 1: Weighted Selection (Filtering by Difficulty)
-    int totalWeight = 0;
-    float currentDiff = globalVariables.spawnerData.currentDifficulty;
+    i32 totalWeight = 0;
+    f32 currentDiff = globalVariables.spawnerData.currentDifficulty;
 
-    for (int i = 0; i < MAX_SPAWN_DEFINITION; i++) {
+    for (i32 i = 0; i < MAX_SPAWN_DEFINITION; i++) {
         if (currentDiff >= globalVariables.spawnerData.spawnsDefinitions[i].Difficulty) {
             totalWeight += globalVariables.spawnerData.spawnsDefinitions[i].chanceToSpawn;
         }
@@ -2033,11 +2033,11 @@ void Spawner_ProcessSpawnLogic(float deltaTime)
     if (totalWeight <= 0)
         return;
 
-    int roll = GetRandomValue(0, totalWeight - 1);
-    int cumulativeWeight = 0;
+    i32 roll = GetRandomValue(0, totalWeight - 1);
+    i32 cumulativeWeight = 0;
     SpawnDefinition *selectedDef = NULL;
 
-    for (int i = 0; i < MAX_SPAWN_DEFINITION; i++) {
+    for (i32 i = 0; i < MAX_SPAWN_DEFINITION; i++) {
         if (currentDiff < globalVariables.spawnerData.spawnsDefinitions[i].Difficulty) 
             continue;
 
@@ -2051,13 +2051,13 @@ void Spawner_ProcessSpawnLogic(float deltaTime)
     if (!selectedDef) return;
 
     // Phase 2: Execution
-    uint16_t amount =
-        Helper_GetRandomUint16InRange(selectedDef->amountToSpawnRange);
-    float distance =
-        Helper_GetRandomFloatInRange(selectedDef->distanceToSpawnRange);
+    u16 amount =
+        Helper_GetRandomu16InRange(selectedDef->amountToSpawnRange);
+    f32 distance =
+        Helper_GetRandomf32InRange(selectedDef->distanceToSpawnRange);
 
     // Random Direction
-    float baseAngle = (float)GetRandomValue(0, 360) * (PI / 180.0f);
+    f32 baseAngle = (f32)GetRandomValue(0, 360) * (PI / 180.0f);
     Vector2 spawnPos = {player->position.x + cosf(baseAngle) * distance,
                         player->position.y + sinf(baseAngle) * distance};
 
@@ -2069,11 +2069,11 @@ void Spawner_ProcessSpawnLogic(float deltaTime)
     } break;
 
     case SPAWN_TYPE_CLUSTER: {
-        for (int i = 0; i < amount; i++) {
+        for (i32 i = 0; i < amount; i++) {
         Entity enemy = Enemy_GenerateEnemy(selectedDef->enemyType);
         // Spread slightly
-        enemy.position.x = spawnPos.x + (float)GetRandomValue(-100, 100);
-        enemy.position.y = spawnPos.y + (float)GetRandomValue(-100, 100);
+        enemy.position.x = spawnPos.x + (f32)GetRandomValue(-100, 100);
+        enemy.position.y = spawnPos.y + (f32)GetRandomValue(-100, 100);
         Global_AddEntity(&enemy);
         }
     } break;
@@ -2083,10 +2083,10 @@ void Spawner_ProcessSpawnLogic(float deltaTime)
         Vector2 lineDir = {-toSpawn.y, toSpawn.x}; // Perpendicular to player vector
         lineDir = Vector2Normalize(lineDir);
 
-        for (int i = 0; i < amount; i++) {
+        for (i32 i = 0; i < amount; i++) {
         Entity enemy = Enemy_GenerateEnemy(selectedDef->enemyType);
         // Center the line on spawnPos
-        float offset = (i - (amount / 2.0f)) * 70.0f;
+        f32 offset = (i - (amount / 2.0f)) * 70.0f;
         enemy.position.x = spawnPos.x + lineDir.x * offset;
         enemy.position.y = spawnPos.y + lineDir.y * offset;
         Global_AddEntity(&enemy);
@@ -2094,8 +2094,8 @@ void Spawner_ProcessSpawnLogic(float deltaTime)
     } break;
 
     case SPAWN_TYPE_AROUND: {
-        for (int i = 0; i < amount; i++) {
-        float angle = (float)i * (2.0f * PI / (float)amount);
+        for (i32 i = 0; i < amount; i++) {
+        f32 angle = (f32)i * (2.0f * PI / (f32)amount);
         Entity enemy = Enemy_GenerateEnemy(selectedDef->enemyType);
         enemy.position.x = player->position.x + cosf(angle) * distance;
         enemy.position.y = player->position.y + sinf(angle) * distance;
@@ -2110,7 +2110,7 @@ void Spawner_ProcessSpawnLogic(float deltaTime)
 void Weapon_GenerateWeaponLevels()
 {
     // Crystal Wand
-    for (int i = 0; i < MAX_WEAPON_LEVEL; i++) {
+    for (i32 i = 0; i < MAX_WEAPON_LEVEL; i++) {
         WeaponDefinition* weaponDef = &globalVariables.InventoryDefinitions.weaponLevelsDefinition.crystalShard[i];
         weaponDef->damage = 15.1f + (i * 5.0f);
         weaponDef->delayBetweenAttacks = 4.0f;
@@ -2123,7 +2123,7 @@ void Weapon_GenerateWeaponLevels()
     }
 
     // Fireball Ring
-    for (int i = 0; i < MAX_WEAPON_LEVEL; i++) {
+    for (i32 i = 0; i < MAX_WEAPON_LEVEL; i++) {
         WeaponDefinition* weaponDef = &globalVariables.InventoryDefinitions.weaponLevelsDefinition.fireballRing[i];
         weaponDef->damage = 30.0f + (i * 8.0f);
         weaponDef->delayBetweenAttacks = 5.0f;
@@ -2137,7 +2137,7 @@ void Weapon_GenerateWeaponLevels()
     }
 
     // Bomb Shoes
-    for (int i = 0; i < MAX_WEAPON_LEVEL; i++) {
+    for (i32 i = 0; i < MAX_WEAPON_LEVEL; i++) {
         WeaponDefinition* weaponDef = &globalVariables.InventoryDefinitions.weaponLevelsDefinition.bombShoes[i];
         weaponDef->damage = 50.0f + (i * 35.0f);
         weaponDef->delayBetweenAttacks = 8.0f - (i * 0.428f); 
@@ -2147,7 +2147,7 @@ void Weapon_GenerateWeaponLevels()
     }
 
     // Nature Spikes
-    for (int i = 0; i < MAX_WEAPON_LEVEL; i++) {
+    for (i32 i = 0; i < MAX_WEAPON_LEVEL; i++) {
         WeaponDefinition* weaponDef = &globalVariables.InventoryDefinitions.weaponLevelsDefinition.natureSpikes[i];
         weaponDef->damage = 10.0f + (i * 4.0f);
         weaponDef->delayBetweenAttacks = 5.5f - (i * 0.285f); 
@@ -2159,7 +2159,7 @@ void Weapon_GenerateWeaponLevels()
     }
 
     // Death Aura
-    for (int i = 0; i < MAX_WEAPON_LEVEL; i++) {
+    for (i32 i = 0; i < MAX_WEAPON_LEVEL; i++) {
         WeaponDefinition* weaponDef = &globalVariables.InventoryDefinitions.weaponLevelsDefinition.deathAura[i];
         weaponDef->damage = 5.1f + (i * 1.78f); 
         weaponDef->delayBetweenAttacks = 0.25f - (i * 0.0089f); 
@@ -2168,7 +2168,7 @@ void Weapon_GenerateWeaponLevels()
 }
 bool Weapon_AddWeapon(WeaponType weaponType)
 {
-    for (int i = 0; i < MAX_WEAPON_CAPACITY; i++) {
+    for (i32 i = 0; i < MAX_WEAPON_CAPACITY; i++) {
         if (globalVariables.inventory.weaponDatas[i].level > 0 && 
             globalVariables.inventory.weaponDatas[i].weaponType == weaponType) {
             if (globalVariables.inventory.weaponDatas[i].level < MAX_WEAPON_LEVEL) {
@@ -2178,7 +2178,7 @@ bool Weapon_AddWeapon(WeaponType weaponType)
         }
     }
 
-    for (int i = 0; i < MAX_WEAPON_CAPACITY; i++) {
+    for (i32 i = 0; i < MAX_WEAPON_CAPACITY; i++) {
         if (globalVariables.inventory.weaponDatas[i].level == 0) {
             globalVariables.inventory.weaponDatas[i].weaponType = weaponType;
             globalVariables.inventory.weaponDatas[i].level = 1;
@@ -2189,12 +2189,12 @@ bool Weapon_AddWeapon(WeaponType weaponType)
     }
     return false;
 }
-void Weapon_ProcessAttack(float deltaTime)
+void Weapon_ProcessAttack(f32 deltaTime)
 {
     Entity* player = Global_GetPlayer();
     if (!player || player->character.bIsDead) return;
 
-    for (int i = 0; i < MAX_WEAPON_CAPACITY; i++) {
+    for (i32 i = 0; i < MAX_WEAPON_CAPACITY; i++) {
         WeaponData* weapon = &globalVariables.inventory.weaponDatas[i];
         if (weapon->level == 0) continue;
 
@@ -2213,11 +2213,11 @@ void Weapon_ProcessAttack(float deltaTime)
         if (weapon->weaponType == WEAPON_TYPE_CRYSTAL_WAND && weapon->burstRemaining > 0) {
             weapon->burstTimer -= deltaTime;
             if (weapon->burstTimer <= 0) {
-                float minDist = 99999.0f;
-                int targetIdx = -1;
-                for (int j = 0; j < globalVariables.lastEntityIndex; j++) {
+                f32 minDist = 99999.0f;
+                i32 targetIdx = -1;
+                for (i32 j = 0; j < globalVariables.lastEntityIndex; j++) {
                     if (globalVariables.entities[j].bIsActive && globalVariables.entities[j].type == ENTITY_TYPE_ENEMY) {
-                        float dist = Vector2Distance(player->position, globalVariables.entities[j].position);
+                        f32 dist = Vector2Distance(player->position, globalVariables.entities[j].position);
                         if (dist < minDist) { minDist = dist; targetIdx = j; }
                     }
                 }
@@ -2232,7 +2232,7 @@ void Weapon_ProcessAttack(float deltaTime)
             }
         }
 
-        float attackSpeedMult = globalVariables.playerStats.attackSpeedMultiplier;
+        f32 attackSpeedMult = globalVariables.playerStats.attackSpeedMultiplier;
         if (globalVariables.activePowerUps[POWERUP_TYPE_DOUBLE_TROUBLE].bIsActive) attackSpeedMult *= 2.0f;
 
         if (weapon->attackTimer <= 0) {
@@ -2245,8 +2245,8 @@ void Weapon_ProcessAttack(float deltaTime)
                     break;
                 case WEAPON_TYPE_FIREBALL_RING: {
                     Vector2 dirs[4] = {{0,-1}, {0,1}, {-1,0}, {1,0}};
-                    for (int d = 0; d < 4; d++) {
-                        for (int amt = 0; amt < weaponDef->projectileAmount; amt++) {
+                    for (i32 d = 0; d < 4; d++) {
+                        for (i32 amt = 0; amt < weaponDef->projectileAmount; amt++) {
                              Vector2 offsetDir = Vector2Rotate(dirs[d], (amt - (weaponDef->projectileAmount-1)/2.0f) * 0.2f);
                              Entity projectile = Projectile_Spawn(PROJECTILE_TYPE_FIREBALL, player->position, Vector2Scale(offsetDir, 400.0f), weaponDef->damage, 4.0f, 1);
                              projectile.projectile.explosive.explosionRadius = weaponDef->fireball.explosionRadius; 
@@ -2262,9 +2262,9 @@ void Weapon_ProcessAttack(float deltaTime)
                     Global_AddEntity(&projectile);
                 } break;
                 case WEAPON_TYPE_NATURE_SPIKES: {
-                    for (int amt = 0; amt < weaponDef->projectileAmount; amt++) {
-                        int candidates[100]; int cCount = 0;
-                        for (int j = 0; j < globalVariables.lastEntityIndex && cCount < 100; j++) {
+                    for (i32 amt = 0; amt < weaponDef->projectileAmount; amt++) {
+                        i32 candidates[100]; i32 cCount = 0;
+                        for (i32 j = 0; j < globalVariables.lastEntityIndex && cCount < 100; j++) {
                             if (globalVariables.entities[j].bIsActive && globalVariables.entities[j].type == ENTITY_TYPE_ENEMY) {
                                 if (Vector2Distance(player->position, globalVariables.entities[j].position) < weaponDef->natureSpikes.rangeToSpawn) {
                                     candidates[cCount++] = j;
@@ -2272,7 +2272,7 @@ void Weapon_ProcessAttack(float deltaTime)
                             }
                         }
                         if (cCount > 0) {
-                            int targetIdx = candidates[GetRandomValue(0, cCount-1)];
+                            i32 targetIdx = candidates[GetRandomValue(0, cCount-1)];
                             Entity projectile = Projectile_Spawn(PROJECTILE_TYPE_NATURE_SPIKE, globalVariables.entities[targetIdx].position, (Vector2){0,0}, weaponDef->damage, weaponDef->natureSpikes.spikeDuration, weaponDef->natureSpikes.spikeMaxDamage);
                             projectile.radius = 40.0f * globalVariables.playerStats.sizeMultiplier;
                             Global_AddEntity(&projectile);
@@ -2310,7 +2310,7 @@ const char* Weapon_GetWeaponName(WeaponType weaponType)
 // ~End of Weapon Implementation
 
 //~ Begin of Global Implementation
-void Global_UpdateGameTimer(float deltaTime)
+void Global_UpdateGameTimer(f32 deltaTime)
 {
     Entity* player = Global_GetPlayer();
     if (player && player->character.bIsDead) return;

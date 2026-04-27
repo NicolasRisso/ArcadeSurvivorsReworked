@@ -3,6 +3,12 @@
 #include "raylib.h"
 #include "raymath.h"
 
+// Modern Types
+#define f32 float
+#define i32 int32_t
+#define u16 uint16_t
+#define u8 uint8_t
+
 // Global Constants
 #define SCREEN_WIDTH 1920
 #define SCREEN_HEIGHT 1080
@@ -15,24 +21,18 @@
 #define MAX_WEAPON_LEVEL 15
 #define MAX_RELIC_CAPACITY 4
 #define MAX_RELIC_LEVEL 15
+#define MAX_ACTIVE_POWERUPS 4
 
-#define MAP_SIZE 10000
+
 #define MAP_HALF_SIZE 5000
 
 //~ Begin of Utility Structs
-typedef struct FloatRange {
-    float min;
-    float max;
-} FloatRange;
-
-typedef struct Uint16Range {
-    uint16_t min;
-    uint16_t max;
-} Uint16Range;
+typedef struct f32Range { f32 min; f32 max; } f32Range;
+typedef struct u16Range { u16 min; u16 max; } u16Range;
 //~ End of Utility Structs
 
 // ~Begin of Enums
-typedef enum EntityType : uint8_t {
+typedef enum EntityType : u8 {
     ENTITY_TYPE_UNDEFINED = 0,
     ENTITY_TYPE_CHARACTER = 1,
     ENTITY_TYPE_PLAYER = 2,
@@ -43,7 +43,7 @@ typedef enum EntityType : uint8_t {
     ENTITY_TYPE_DROP = 7
 } EntityType;
 
-typedef enum ProjectileType : uint8_t {
+typedef enum ProjectileType : u8 {
     PROJECTILE_TYPE_UNDEFINED = 0,
     PROJECTILE_TYPE_CRYSTAL_SHARD = 1,
     PROJECTILE_TYPE_FIREBALL = 2,
@@ -53,7 +53,7 @@ typedef enum ProjectileType : uint8_t {
     PROJECTILE_TYPE_EXPLOSION = 6
 } ProjectileType;
 
-typedef enum WeaponType : uint8_t {
+typedef enum WeaponType : u8 {
     WEAPON_TYPE_CRYSTAL_WAND = 0,
     WEAPON_TYPE_FIREBALL_RING = 1,
     WEAPON_TYPE_BOMB_SHOES = 2,
@@ -62,7 +62,7 @@ typedef enum WeaponType : uint8_t {
     WEAPON_TYPE_COUNT = 5
 } WeaponType;
 
-typedef enum RelicType : uint8_t {
+typedef enum RelicType : u8 {
     RELIC_TYPE_HEALTH = 0,
     RELIC_TYPE_DAMAGE = 1,
     RELIC_TYPE_ATTACK_SPEED = 2,
@@ -73,38 +73,38 @@ typedef enum RelicType : uint8_t {
     RELIC_TYPE_COUNT = 7
 } RelicType;
 
-typedef enum EnemyType : uint8_t {
+typedef enum EnemyType : u8 {
     ENEMY_TYPE_NORMAL = 0,
     ENEMY_TYPE_FAST = 1,
     ENEMY_TYPE_TANK = 2,
     ENEMY_TYPE_BOSS = 3
 } EnemyType;
 
-typedef enum PowerUpType : uint8_t {
+typedef enum PowerUpType : u8 {
     POWERUP_TYPE_NUKE = 0,
     POWERUP_TYPE_DOUBLE_TROUBLE = 1,
     POWERUP_TYPE_TIME_FREEZE = 2,
     POWERUP_TYPE_MAGNET = 3
 } PowerUpType;
 
-typedef enum InstantDropType : uint8_t {
+typedef enum InstantDropType : u8 {
     INSTANT_DROP_TYPE_LIFE = 0,
     INSTANT_DROP_TYPE_BIG_LIFE = 1
 } InstantDropType;
 
-typedef enum DropType : uint8_t {
+typedef enum DropType : u8 {
     DROP_TYPE_INSTANT = 0,
     DROP_TYPE_POWERUP = 1
 } DropType;
 
-typedef enum AssetSpriteType : uint8_t {
+typedef enum AssetSpriteType : u8 {
     ASSET_SPRITE_TYPE_PLAYER = 0,
     ASSET_SPRITE_TYPE_GRASS = 1,
     ASSET_SPRITE_TYPE_BAT = 2,
     ASSET_SPRITE_TYPE_COUNT = 3
 } AssetSpriteType;
 
-typedef enum AssetSoundType : uint8_t {
+typedef enum AssetSoundType : u8 {
     ASSET_SOUND_TYPE_DAMAGE = 0,
     ASSET_SOUND_TYPE_EXPLOSION = 1,
     ASSET_SOUND_TYPE_LEVEL_UP = 2,
@@ -113,31 +113,31 @@ typedef enum AssetSoundType : uint8_t {
     ASSET_SOUND_TYPE_COUNT = 5
 } AssetSoundType;
 
-typedef enum AssetMusicType : uint8_t {
+typedef enum AssetMusicType : u8 {
     ASSET_MUSIC_TYPE_COMBAT = 0,
     ASSET_MUSIC_TYPE_COUNT = 1
 } AssetMusicType;
 
-typedef enum VisualType : uint8_t {
+typedef enum VisualType : u8 {
     VISUAL_TYPE_NONE = 0, // For entities that have no sprite
     VISUAL_TYPE_SPRITE = 1, // For entities with sprites
     VISUAL_TYPE_ANIMATED_SPRITE = 2, // For entities with animated sprites
     VISUAL_TYPE_ANIMATED_STATIC_SPRITE = 3 // For entities with animated static sprites (e.g. bounce)
 } VisualType;
 
-typedef enum SpawnType : uint8_t {
+typedef enum SpawnType : u8 {
     SPAWN_TYPE_SINGLE = 0,
     SPAWN_TYPE_CLUSTER = 1,
     SPAWN_TYPE_LINE = 2,
     SPAWN_TYPE_AROUND = 3
 } SpawnType;
 
-typedef enum UpgradeType : uint8_t {
+typedef enum UpgradeType : u8 {
     UPGRADE_TYPE_WEAPON,
     UPGRADE_TYPE_RELIC
 } UpgradeType;
 
-typedef enum GameEventType : uint8_t {
+typedef enum GameEventType : u8 {
     EVENT_TYPE_NONE = 0,
     EVENT_TYPE_SWARM = 1,
     EVENT_TYPE_BOSS = 2
@@ -145,117 +145,89 @@ typedef enum GameEventType : uint8_t {
 // ~End of Enums
 
 typedef struct Drop {
-    float radius;
+    f32 radius;
     DropType dropType;
-    union
-    {
-        PowerUpType powerUpType;
-        InstantDropType instantDropType;
-    };
+    union{ PowerUpType powerUpType; InstantDropType instantDropType; };
 } Drop;
 
 typedef struct DropsDefinition{
-    float chanceToPowerUp;
-    float chanceToInstant;
+    f32 chanceToPowerUp;
+    f32 chanceToInstant;
 } DropsDefinition;
 
 // ~Begin of Structs
 typedef struct SpriteData {
-    uint8_t spriteID;
-    bool flipX;
+    u8 spriteID;
+    f32 flipX;
 } SpriteData;
 
 typedef struct AnimatedSpriteData {
-    uint8_t spriteID;
-    uint8_t frameCount;
-    uint8_t currentFrame;
-    float frameTimer;
-    float frameTime;
+    u8 spriteID;
+    u8 frameCount;
+    u8 currentFrame;
+    f32 frameTimer;
+    f32 frameTime;
     bool flipX;
 } AnimatedSpriteData;
 
 typedef struct AnimatedStaticSpriteData {
-    uint8_t spriteID;
-    float animationDuration;
-    float animationTimer;
+    u8 spriteID;
+    f32 animationDuration;
+    f32 animationTimer;
     bool flipX;
 } AnimatedStaticSpriteData;
 
 typedef struct Character{
-    float health;
-    float maxHealth;
-    float speed;
-    float flashTimer;
-    float invulnerableTimer;
+    f32 health;
+    f32 maxHealth;
+    f32 speed;
+    f32 flashTimer;
+    f32 invulnerableTimer;
     bool bIsDead;
-    float deathFadeTimer;
+    f32 deathFadeTimer;
 } Character;
 
 typedef struct EnemyCharacter{
-    float health;
-    float speed;
-    float damage;
-
+    f32 health;
+    f32 speed;
+    f32 damage;
     EnemyType enemyType;
-    float xpDropAmount;
-    float flashTimer;
+    f32 xpDropAmount;
+    f32 flashTimer;
 } EnemyCharacter;
 
 typedef struct Projectile{
     ProjectileType projectileType;
-    float damage;
-    float lifeTime;
-    uint8_t penetration;
-    uint16_t ownerID;
-    float timer;
-    union {
-        struct {
-            uint16_t hitIds[16];
-        } hitTracking;
-        struct {
-            float explosionRadius;
-            float explosionDamageMultiplier;
-        } explosive;
-    };
+    f32 damage;
+    f32 lifeTime;
+    u8 penetration;
+    u16 ownerID;
+    f32 timer;
+    union { struct { u16 hitIds[16];} hitTracking; struct { f32 explosionRadius; f32 explosionDamageMultiplier; } explosive; };
 } Projectile;
 
 typedef struct DamagePopup {
-    float amount;
-    float timer;
+    f32 amount;
+    f32 timer;
 } DamagePopup;
 
 typedef struct XPCrystal {
-    float amount;
+    f32 amount;
     bool bIsMagnetized;
 } XPCrystal;
 
 typedef struct Entity{
     EntityType type;
-    uint16_t id;
-    uint8_t spriteID;
+    u16 id;
+    u8 spriteID;
     bool bIsActive;
     Vector2 position;
     Vector2 velocity;
     Vector2 scale;
-    float radius;
-    union
-    {
-        Character character;
-        EnemyCharacter enemyCharacter;
-        Projectile projectile;
-        DamagePopup damagePopup;
-        XPCrystal xpCrystal;
-        Drop drop;
-    };
-
-    // Sprite Data
+    f32 radius;
+    union { Character character; EnemyCharacter enemyCharacter; Projectile projectile; DamagePopup damagePopup; XPCrystal xpCrystal; Drop drop; };
     VisualType visualType;
-    union
-    {
-        SpriteData sprite;
-        AnimatedSpriteData animatedSprite;
-        AnimatedStaticSpriteData animatedStaticSprite;
-    };
+    union { SpriteData sprite; AnimatedSpriteData animatedSprite; AnimatedStaticSpriteData animatedStaticSprite; };
 } Entity;
 
 typedef struct Assets{
@@ -263,71 +235,64 @@ typedef struct Assets{
     Sound sounds[ASSET_SOUND_TYPE_COUNT];
     Music musics[ASSET_MUSIC_TYPE_COUNT];
     Shader flashShader;
-    int flashIntensityLoc;
+    i32 flashIntensityLoc;
 } Assets;
 
 typedef struct SpawnDefinition{
     EnemyType enemyType;
     SpawnType spawnType;
-    Uint16Range amountToSpawnRange;
-    FloatRange distanceToSpawnRange;
-    uint16_t chanceToSpawn;
-    float Difficulty;
+    u16Range amountToSpawnRange;
+    f32Range distanceToSpawnRange;
+    u16 chanceToSpawn;
+    f32 Difficulty;
 } SpawnDefinition;
 
 typedef struct SpawnerData{
-    float delayBetweenSpawns;
-    float spawnTimer;
-    float currentDifficulty;
+    f32 delayBetweenSpawns;
+    f32 spawnTimer;
+    f32 currentDifficulty;
     SpawnDefinition spawnsDefinitions[MAX_SPAWN_DEFINITION];
 } SpawnerData;
 
 // Removed duplicate WeaponData
 
 typedef struct WeaponCrystalDefinition {
-    uint8_t penetration;
+    u8 penetration;
 } WeaponCrystalDefinition;
 
 typedef struct WeaponFireballDefinition {
-    float explosionRadius;
-    float explosionDamageMultipler;
+    f32 explosionRadius;
+    f32 explosionDamageMultipler;
 } WeaponFireballDefinition;
 
 typedef struct WeaponBombShoesDefinition {
-    float explosionRadius;
-    float delayToExplode;
+    f32 explosionRadius;
+    f32 delayToExplode;
 } WeaponBombShoesDefinition;
 
 typedef struct WeaponNatureSpikesDefinition {
-    float rangeToSpawn;
-    float spikeDuration;
-    float spikeMaxDamage;
+    f32 rangeToSpawn;
+    f32 spikeDuration;
+    f32 spikeMaxDamage;
 } WeaponNatureSpikesDefinition;
 
 typedef struct WeaponDeathAuraDefinition {
-    float size;
+    f32 size;
 } WeaponDeathAuraDefinition;
 
 typedef struct WeaponDefinition {
-    float damage;
-    float delayBetweenAttacks;
-    uint8_t projectileAmount;
-    union
-    {
-        WeaponCrystalDefinition crystal;
-        WeaponFireballDefinition fireball;
-        WeaponBombShoesDefinition bombShoes;
-        WeaponNatureSpikesDefinition natureSpikes;
-        WeaponDeathAuraDefinition deathAura;
-    };
+    f32 damage;
+    f32 delayBetweenAttacks;
+    u8 projectileAmount;
+    union { WeaponCrystalDefinition crystal; WeaponFireballDefinition fireball; WeaponBombShoesDefinition bombShoes; WeaponNatureSpikesDefinition natureSpikes; WeaponDeathAuraDefinition deathAura; };
 } WeaponDefinition;
 
 typedef struct WeaponData {
     WeaponType weaponType;
-    uint8_t level;
-    float attackTimer;
-    uint8_t burstRemaining;
-    float burstTimer;
+    u8 level;
+    f32 attackTimer;
+    u8 burstRemaining;
+    f32 burstTimer;
 } WeaponData;
 
 typedef struct WeaponLevelsDefinition {
@@ -339,11 +304,11 @@ typedef struct WeaponLevelsDefinition {
 } WeaponLevelsDefinition;
 
 typedef struct RelicDefinition {
-    float multiplier;
+    f32 multiplier;
 } RelicDefinition;
 
 typedef struct RelicData {
-    uint8_t level;
+    u8 level;
     RelicType relicType;
     RelicDefinition RelicDefinition;
 } RelicData;
@@ -360,95 +325,80 @@ typedef struct InventoryDefinitions {
 
 typedef struct UpgradeOption {
     UpgradeType type;
-    union {
-        WeaponType weapon;
-        RelicType relic;
-    };
-    uint8_t level;
+    union { WeaponType weapon; RelicType relic; };
+    u8 level;
 } UpgradeOption;
 
 typedef struct LevelUpState {
     bool bShowLevelUp;
     UpgradeOption options[3];
-    int pendingCount;
-    int selectedIndex;
+    u8 pendingCount;
+    u8 selectedIndex;
 } LevelUpState;
 
 typedef struct PlayerStats{
-    float currentXP;
-    float nextLevelXP;
-    uint16_t level;
-
-    float healthMultiplier;
-    float damageMultiplier;
-    float attackSpeedMultiplier;
-    float movementSpeedMultiplier;
-    float sizeMultiplier;
-    float lifeStealMultiplier;
-    float xpMultiplier;
+    f32 currentXP;
+    f32 nextLevelXP;
+    u16 level;
+    f32 healthMultiplier;
+    f32 damageMultiplier;
+    f32 attackSpeedMultiplier;
+    f32 movementSpeedMultiplier;
+    f32 sizeMultiplier;
+    f32 lifeStealMultiplier;
+    f32 xpMultiplier;
 } PlayerStats;
  
 typedef struct GameEventState {
     GameEventType activeEventType;
-    float activeEventTimer;
-    float swarmCycleTimer;
-    float bossCycleTimer;
+    f32 activeEventTimer;
+    f32 swarmCycleTimer;
+    f32 bossCycleTimer;
 } GameEventState;
 
 typedef struct ActivePowerUp {
     PowerUpType type;
-    float remainingTime;
+    f32 remainingTime;
     bool bIsActive;
 } ActivePowerUp;
 
-#define MAX_ACTIVE_POWERUPS 4
-
 typedef struct GlobalVariables{
     Assets assets;
-    
     Camera2D camera;
     PlayerStats playerStats;
-
     Entity entities[MAX_ENTITIES_AMOUNT];
-    uint16_t lastEntityIndex;
-
-    uint16_t playerIndex;
-
+    u16 lastEntityIndex;
+    u16 playerIndex;
     DropsDefinition dropsDefinition;
-
     Inventory inventory;
     InventoryDefinitions InventoryDefinitions;
-
     SpawnerData spawnerData;
-    float gameTimer;
-    uint16_t deathAuraIndex;
-    uint16_t nextEntityId;
+    f32 gameTimer;
+    u16 deathAuraIndex;
+    u16 nextEntityId;
     bool bShowInventory;
-
     LevelUpState levelUpState;
     GameEventState eventState;
-
     ActivePowerUp activePowerUps[MAX_ACTIVE_POWERUPS];
     char hudEventMessage[64];
-    float hudEventTimer;
+    f32 hudEventTimer;
 } GlobalVariables;
-
 // ~End of Structs
 
 // Declaration of Global Variables
 extern GlobalVariables globalVariables;
 
 // The game main loop
-int main(void);
+i32 main(void);
 
 //~ Begin of Core Implementation
 void Core_InitGame();
 void Core_ProcessInput();
-void Core_UpdateGame(float deltaTime);
+void Core_UpdateGame(f32 deltaTime);
 void Core_RenderGraphics();
 void Core_CloseGame();
 
-int Core_IsGameReadyToClose();
+i32 Core_IsGameReadyToClose();
 //~ End of Core Implementation
 
 //~ Begin of Assets Implementation
@@ -461,7 +411,7 @@ Music Assets_GetMusic(AssetMusicType musicID);
 
 //~ Begin of Audio Implementation
 void Audio_PlaySoundVar(AssetSoundType type, bool bIsSpammable);
-void Audio_Update(float deltaTime);
+void Audio_Update(f32 deltaTime);
 //~ End of Audio Implementation
 
 //~ Begin of Collision Implementation
@@ -475,7 +425,7 @@ void Drop_ProcessPickUp();
 
 //~ Begin of Enemy Implementation
 Entity Enemy_GenerateEnemy(EnemyType enemyType);
-void Enemy_ProcessAllMovement(float deltaTime);
+void Enemy_ProcessAllMovement(f32 deltaTime);
 //~ End of Enemy Implementation
 
 //~ Begin of Event Implementation
@@ -498,18 +448,18 @@ void HUD_DrawPickupNotification();
 Camera2D Player_GenerateCamera();
 Entity Player_GeneratePlayer();
 PlayerStats Player_GeneratePlayerStats();
-void Player_ProcessMovement(Entity* player, float deltaTime);
-void Player_AnimateMovement(Entity* player, float deltaTime);
+void Player_ProcessMovement(Entity* player, f32 deltaTime);
+void Player_AnimateMovement(Entity* player, f32 deltaTime);
 //~ End of Player Implementation
 
 //~ Begin of Popup Implementation
-Entity Popup_SpawnDamagePopup(Vector2 pos, float amount);
-void Popup_UpdateAll(float deltaTime);
+Entity Popup_SpawnDamagePopup(Vector2 pos, f32 amount);
+void Popup_UpdateAll(f32 deltaTime);
 //~ End of Popup Implementation
 
 //~ Begin of Projectile Implementation
-Entity Projectile_Spawn(ProjectileType type, Vector2 pos, Vector2 vel, float damage, float lifeTime, uint8_t penetration);
-void Projectile_ProcessAllMovement(float deltaTime);
+Entity Projectile_Spawn(ProjectileType type, Vector2 pos, Vector2 vel, f32 damage, f32 lifeTime, u8 penetration);
+void Projectile_ProcessAllMovement(f32 deltaTime);
 //~ End of Projectile Implementation
 
 //~ Begin of Relic Implementation
@@ -527,25 +477,25 @@ void Render_DrawEntity(Entity* entity);
 
 //~ Begin of Spawner Implementation
 SpawnerData Spawner_GenerateSpawnerData();
-void Spawner_ProcessSpawnLogic(float deltaTime);
+void Spawner_ProcessSpawnLogic(f32 deltaTime);
 //~ End of Spawner Implementation
 
 //~ Begin of Weapon Implementation
 void Weapon_GenerateWeaponLevels();
 bool Weapon_AddWeapon(WeaponType weaponType); //This function also levels up weapons
-void Weapon_ProcessAttack(float deltaTime);
+void Weapon_ProcessAttack(f32 deltaTime);
 const char* Weapon_GetWeaponName(WeaponType weaponType);
 //~ End of Weapon Implementation
 
 //~ Begin of XP Implementation
-void XP_GenerateXPCrystal(Vector2 position, float amount);
-void XP_MoveCrystals(float deltaTime);
-void XP_GrantXP(float amount);
+void XP_GenerateXPCrystal(Vector2 position, f32 amount);
+void XP_MoveCrystals(f32 deltaTime);
+void XP_GrantXP(f32 amount);
 void XP_LevelUp();
 //~ End of XP Implementation
 
 //~ Begin of Global Implementation
-void Global_UpdateGameTimer(float deltaTime);
+void Global_UpdateGameTimer(f32 deltaTime);
 inline static Entity* Global_GetPlayer()
 {
     return &globalVariables.entities[globalVariables.playerIndex];
@@ -564,7 +514,7 @@ inline static bool Global_AddEntity(Entity* entity)
 
     return true;
 }
-inline static bool Global_DestroyEntity(uint16_t entityIndex)
+inline static bool Global_DestroyEntity(u16 entityIndex)
 {
     if (entityIndex >= globalVariables.lastEntityIndex || entityIndex >= MAX_ENTITIES_AMOUNT) return false;
 
@@ -584,14 +534,14 @@ inline static bool Global_DestroyEntity(uint16_t entityIndex)
 
     return true;
 }
-inline static void Global_DealDamageToEnemy(int enemyIndex, float damage, bool bIsAOE)
+inline static void Global_DealDamageToEnemy(i32 enemyIndex, f32 damage, bool bIsAOE)
 {
     if (enemyIndex < 0 || enemyIndex >= globalVariables.lastEntityIndex) return;
     Entity* enemy = &globalVariables.entities[enemyIndex];
     if (!enemy->bIsActive || enemy->type != ENTITY_TYPE_ENEMY) return;
 
     // Healing should be from what actual damage was dealt
-    float actualDamageDealt = damage;
+    f32 actualDamageDealt = damage;
     if (actualDamageDealt > enemy->enemyCharacter.health) {
         actualDamageDealt = enemy->enemyCharacter.health;
     }
@@ -604,7 +554,7 @@ inline static void Global_DealDamageToEnemy(int enemyIndex, float damage, bool b
     // Life Steal logic
     Entity* player = Global_GetPlayer();
     if (globalVariables.playerStats.lifeStealMultiplier > 0.0f && actualDamageDealt > 0) {
-        float steal = actualDamageDealt * globalVariables.playerStats.lifeStealMultiplier;
+        f32 steal = actualDamageDealt * globalVariables.playerStats.lifeStealMultiplier;
         
         // AOE reduction
         if (bIsAOE) steal *= 0.4f;
@@ -624,12 +574,12 @@ inline static void Global_DealDamageToEnemy(int enemyIndex, float damage, bool b
 // ~End of Global Implementation
 
 // ~Begin of Helpers Implementation
-inline static float Helper_GetRandomFloatInRange(FloatRange range)
+inline static f32 Helper_GetRandomf32InRange(f32Range range)
 {
-    return range.min + (float)GetRandomValue(0, 10000) / 10000.0f * (range.max - range.min);
+    return range.min + (f32)GetRandomValue(0, 10000) / 10000.0f * (range.max - range.min);
 }
-inline static uint16_t Helper_GetRandomUint16InRange(Uint16Range range)
+inline static u16 Helper_GetRandomu16InRange(u16Range range)
 {
-    return (uint16_t)GetRandomValue(range.min, range.max);
+    return (u16)GetRandomValue(range.min, range.max);
 }
 // ~End of Helpers Implementation
