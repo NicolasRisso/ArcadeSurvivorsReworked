@@ -80,7 +80,7 @@ void Core_InitGame()
     globalVariables.eventState.swarmCycleTimer = 0.0f;
     globalVariables.eventState.bossCycleTimer = 0.0f;
     globalVariables.eventState.activeEventTimer = 0.0f;
-    globalVariables.eventState.activeEventType = EVENT_TYPE_NONE;
+    globalVariables.eventState.activeEventType = EVENT_TYPE_UNDEFINED;
 
     // Init Level Up State
     globalVariables.levelUpState.bShowLevelUp = false;
@@ -147,7 +147,7 @@ void Core_UpdateGame(f32 deltaTime) {
     if (globalVariables.eventState.activeEventTimer > 0) {
         globalVariables.eventState.activeEventTimer -= deltaTime;
         if (globalVariables.eventState.activeEventTimer <= 0) {
-            globalVariables.eventState.activeEventType = EVENT_TYPE_NONE;
+            globalVariables.eventState.activeEventType = EVENT_TYPE_UNDEFINED;
         }
     }
 
@@ -1506,7 +1506,7 @@ void XP_GenerateXPCrystal(Vector2 position, f32 amount)
     crystal.velocity = (Vector2){0, 0};
     crystal.scale = (Vector2){1.0f, 1.0f};
     crystal.radius = 15.0f;
-    crystal.visualType = VISUAL_TYPE_NONE;
+    crystal.visualType = VISUAL_TYPE_UNDEFINED;
     crystal.xpCrystal.amount = amount;
     crystal.xpCrystal.bIsMagnetized = false;
     Global_AddEntity(&crystal);
@@ -1620,7 +1620,7 @@ void Render_DrawEntity(Entity *entity)
         return;
     }
 
-    if (entity->visualType == VISUAL_TYPE_NONE) 
+    if (entity->visualType == VISUAL_TYPE_UNDEFINED) 
         return;
 
     Texture2D texture;

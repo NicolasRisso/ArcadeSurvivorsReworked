@@ -54,91 +54,102 @@ typedef enum ProjectileType : u8 {
 } ProjectileType;
 
 typedef enum WeaponType : u8 {
-    WEAPON_TYPE_CRYSTAL_WAND = 0,
-    WEAPON_TYPE_FIREBALL_RING = 1,
-    WEAPON_TYPE_BOMB_SHOES = 2,
-    WEAPON_TYPE_NATURE_SPIKES = 3,
-    WEAPON_TYPE_DEATH_AURA = 4,
-    WEAPON_TYPE_COUNT = 5
+    WEAPON_TYPE_UNDEFINED = 0,
+    WEAPON_TYPE_CRYSTAL_WAND = 1,
+    WEAPON_TYPE_FIREBALL_RING = 2,
+    WEAPON_TYPE_BOMB_SHOES = 3,
+    WEAPON_TYPE_NATURE_SPIKES = 4,
+    WEAPON_TYPE_DEATH_AURA = 5,
+    WEAPON_TYPE_COUNT = 6
 } WeaponType;
 
 typedef enum RelicType : u8 {
-    RELIC_TYPE_HEALTH = 0,
-    RELIC_TYPE_DAMAGE = 1,
-    RELIC_TYPE_ATTACK_SPEED = 2,
-    RELIC_TYPE_MOVEMENT_SPEED = 3,
-    RELIC_TYPE_SIZE = 4,
-    RELIC_TYPE_LIFE_STEAL = 5,
-    RELIC_TYPE_XP = 6,
-    RELIC_TYPE_COUNT = 7
+    RELIC_TYPE_UNDEFINED = 0,
+    RELIC_TYPE_HEALTH = 1,
+    RELIC_TYPE_DAMAGE = 2,
+    RELIC_TYPE_ATTACK_SPEED = 3,
+    RELIC_TYPE_MOVEMENT_SPEED = 4,
+    RELIC_TYPE_SIZE = 5,
+    RELIC_TYPE_LIFE_STEAL = 6,
+    RELIC_TYPE_XP = 7,
+    RELIC_TYPE_COUNT = 8
 } RelicType;
 
 typedef enum EnemyType : u8 {
-    ENEMY_TYPE_NORMAL = 0,
-    ENEMY_TYPE_FAST = 1,
-    ENEMY_TYPE_TANK = 2,
-    ENEMY_TYPE_BOSS = 3
+    ENEMY_TYPE_UNDEFINED = 0,
+    ENEMY_TYPE_NORMAL = 1,
+    ENEMY_TYPE_FAST = 2,
+    ENEMY_TYPE_TANK = 3,
+    ENEMY_TYPE_BOSS = 4
 } EnemyType;
 
 typedef enum PowerUpType : u8 {
-    POWERUP_TYPE_NUKE = 0,
-    POWERUP_TYPE_DOUBLE_TROUBLE = 1,
-    POWERUP_TYPE_TIME_FREEZE = 2,
-    POWERUP_TYPE_MAGNET = 3
+    POWERUP_TYPE_UNDEFINED = 0,
+    POWERUP_TYPE_NUKE = 1,
+    POWERUP_TYPE_DOUBLE_TROUBLE = 2,
+    POWERUP_TYPE_TIME_FREEZE = 3,
+    POWERUP_TYPE_MAGNET = 4
 } PowerUpType;
 
 typedef enum InstantDropType : u8 {
-    INSTANT_DROP_TYPE_LIFE = 0,
-    INSTANT_DROP_TYPE_BIG_LIFE = 1
+    INSTANT_DROP_TYPE_UNDEFINED = 0,
+    INSTANT_DROP_TYPE_LIFE = 1,
+    INSTANT_DROP_TYPE_BIG_LIFE = 2
 } InstantDropType;
 
 typedef enum DropType : u8 {
-    DROP_TYPE_INSTANT = 0,
-    DROP_TYPE_POWERUP = 1
+    DROP_TYPE_UNDEFINED = 0,
+    DROP_TYPE_INSTANT = 1,
+    DROP_TYPE_POWERUP = 2
 } DropType;
 
 typedef enum AssetSpriteType : u8 {
-    ASSET_SPRITE_TYPE_PLAYER = 0,
-    ASSET_SPRITE_TYPE_GRASS = 1,
-    ASSET_SPRITE_TYPE_BAT = 2,
-    ASSET_SPRITE_TYPE_COUNT = 3
+    ASSET_SPRITE_TYPE_UNDEFINED = 0,
+    ASSET_SPRITE_TYPE_PLAYER = 1,
+    ASSET_SPRITE_TYPE_GRASS = 2,
+    ASSET_SPRITE_TYPE_BAT = 3,
+    ASSET_SPRITE_TYPE_COUNT = 4
 } AssetSpriteType;
 
 typedef enum AssetSoundType : u8 {
-    ASSET_SOUND_TYPE_DAMAGE = 0,
-    ASSET_SOUND_TYPE_EXPLOSION = 1,
-    ASSET_SOUND_TYPE_LEVEL_UP = 2,
-    ASSET_SOUND_TYPE_XP_GAIN = 3,
-    ASSET_SOUND_TYPE_PLAYER_DAMAGE = 4,
-    ASSET_SOUND_TYPE_COUNT = 5
+    ASSET_SOUND_TYPE_UNDEFINED = 0,
+    ASSET_SOUND_TYPE_DAMAGE = 1,
+    ASSET_SOUND_TYPE_EXPLOSION = 2,
+    ASSET_SOUND_TYPE_LEVEL_UP = 3,
+    ASSET_SOUND_TYPE_XP_GAIN = 4,
+    ASSET_SOUND_TYPE_PLAYER_DAMAGE = 5,
+    ASSET_SOUND_TYPE_COUNT = 6
 } AssetSoundType;
 
 typedef enum AssetMusicType : u8 {
-    ASSET_MUSIC_TYPE_COMBAT = 0,
-    ASSET_MUSIC_TYPE_COUNT = 1
+    ASSET_MUSIC_TYPE_UNDEFINED = 0,
+    ASSET_MUSIC_TYPE_COMBAT = 1,
+    ASSET_MUSIC_TYPE_COUNT = 2
 } AssetMusicType;
 
 typedef enum VisualType : u8 {
-    VISUAL_TYPE_NONE = 0, // For entities that have no sprite
+    VISUAL_TYPE_UNDEFINED = 0, // For entities that have no sprite
     VISUAL_TYPE_SPRITE = 1, // For entities with sprites
     VISUAL_TYPE_ANIMATED_SPRITE = 2, // For entities with animated sprites
     VISUAL_TYPE_ANIMATED_STATIC_SPRITE = 3 // For entities with animated static sprites (e.g. bounce)
 } VisualType;
 
 typedef enum SpawnType : u8 {
-    SPAWN_TYPE_SINGLE = 0,
-    SPAWN_TYPE_CLUSTER = 1,
-    SPAWN_TYPE_LINE = 2,
-    SPAWN_TYPE_AROUND = 3
+    SPAWN_TYPE_UNDEFINED = 0,
+    SPAWN_TYPE_SINGLE = 1,
+    SPAWN_TYPE_CLUSTER = 2,
+    SPAWN_TYPE_LINE = 3,
+    SPAWN_TYPE_AROUND = 4
 } SpawnType;
 
 typedef enum UpgradeType : u8 {
-    UPGRADE_TYPE_WEAPON,
-    UPGRADE_TYPE_RELIC
+    UPGRADE_TYPE_UNDEFINED = 0,
+    UPGRADE_TYPE_WEAPON = 1,
+    UPGRADE_TYPE_RELIC = 2
 } UpgradeType;
 
 typedef enum GameEventType : u8 {
-    EVENT_TYPE_NONE = 0,
+    EVENT_TYPE_UNDEFINED = 0,
     EVENT_TYPE_SWARM = 1,
     EVENT_TYPE_BOSS = 2
 } GameEventType;
