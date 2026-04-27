@@ -1129,7 +1129,7 @@ PlayerStats Player_GeneratePlayerStats()
 void Player_ProcessMovement(Entity *player, f32 deltaTime)
 {
     if (!player) return;
-    if (player->type == ENTITY_TYPE_CHARACTER) {
+    if (player->type == ENTITY_TYPE_UNDEFINED) {
         if (player->character.deathFadeTimer > 0) player->character.deathFadeTimer -= deltaTime;
         return;
     }
@@ -1646,10 +1646,12 @@ void Render_DrawEntity(Entity *entity)
     }
 
     // Death Fade Logic
-    if (entity->type == ENTITY_TYPE_PLAYER) {
-        if (entity->character.deathFadeTimer <= 0) return; // Completely gone
-        f32 alpha = entity->character.deathFadeTimer / 2.0f;
-        tint = ColorAlpha(tint, alpha);
+    if (entity == Global_GetPlayer()) {
+        if (entity->type == ENTITY_TYPE_UNDEFINED) {
+            if (entity->character.deathFadeTimer <= 0) return; // Completely gone
+            f32 alpha = entity->character.deathFadeTimer / 2.0f;
+            tint = ColorAlpha(tint, alpha);
+        }
     }
 
     if (flashIntensity > 0.0f) {
