@@ -57,7 +57,7 @@ void Core_InitGame()
     globalVariables.spawnerData = Spawner_GenerateSpawnerData();
     Weapon_GenerateWeaponLevels();
     Relic_GenerateRelicDefinition();
-    Weapon_AddWeapon((WeaponType)GetRandomValue(0, WEAPON_TYPE_COUNT - 1));
+    Weapon_AddWeapon((WeaponType)GetRandomValue(1, WEAPON_TYPE_COUNT - 1));
 
     // Initialize Drops
     globalVariables.dropsDefinition.chanceToPowerUp = 0.01f;
@@ -368,9 +368,9 @@ void Drop_GenerateDrop(Vector2 pos)
         dropEntity.drop.dropType = dropType;
 
         if (dropType == DROP_TYPE_POWERUP) {
-            dropEntity.drop.powerUpType = (PowerUpType)GetRandomValue(0, 3);
+            dropEntity.drop.powerUpType = (PowerUpType)GetRandomValue(1, POWERUP_TYPE_COUNT - 1);
         } else {
-            dropEntity.drop.instantDropType = (InstantDropType)GetRandomValue(0, 1);
+            dropEntity.drop.instantDropType = (InstantDropType)GetRandomValue(1, INSTANT_DROP_TYPE_COUNT - 1);
         }
         Global_AddEntity(&dropEntity);
     }
@@ -378,8 +378,7 @@ void Drop_GenerateDrop(Vector2 pos)
 
 void PowerUp_Trigger(PowerUpType type)
 {
-    const char* names[] = { "NUKE", "DOUBLE TROUBLE", "TIME FREEZE", "MAGNET" };
-    sprintf(globalVariables.hudEventMessage, "%s ACTIVATED!", names[type]);
+    sprintf(globalVariables.hudEventMessage, "%s ACTIVATED!", PowerUpNames[type]);
     globalVariables.hudEventTimer = 1.5f;
 
     switch (type) {
@@ -405,11 +404,24 @@ void PowerUp_Trigger(PowerUpType type)
 
 void Instant_Trigger(InstantDropType type)
 {
-    Entity* player = Global_GetPlayer(); f32 healPercent = (type == INSTANT_DROP_TYPE_LIFE) ? 0.2f : 0.5f;
-    player->character.health += player->character.maxHealth * healPercent;
-    if (player->character.health > player->character.maxHealth) player->character.health = player->character.maxHealth;
-    sprintf(globalVariables.hudEventMessage, "%s HEALED!", (type == INSTANT_DROP_TYPE_LIFE) ? "20%" : "50%");
-    globalVariables.hudEventTimer = 1.5f;
+    Entity* player = Global_GetPlayer(); 
+    f32 healPercent = 0.0f;
+    const char* healMsg = "";
+
+    if (type == INSTANT_DROP_TYPE_LIFE) {
+        healPercent = 0.2f;
+        healMsg = "20%";
+    } else if (type == INSTANT_DROP_TYPE_BIG_LIFE) {
+        healPercent = 0.5f;
+        healMsg = "50%";
+    }
+
+    if (healPercent > 0.0f) {
+        player->character.health += player->character.maxHealth * healPercent;
+        if (player->character.health > player->character.maxHealth) player->character.health = player->character.maxHealth;
+        sprintf(globalVariables.hudEventMessage, "%s HEALED!", healMsg);
+        globalVariables.hudEventTimer = 1.5f;
+    }
 }
 
 void Drop_ProcessPickUp()
@@ -780,7 +792,7 @@ void HUD_DrawInventory()
     for (i32 i = 0; i < MAX_WEAPON_CAPACITY; i++) {
         WeaponData* weapon = &globalVariables.inventory.weaponDatas[i];
         if (weapon->level > 0) {
-            DrawText(TextFormat("Lv.%d %s", weapon->level, Weapon_GetWeaponName(weapon->weaponType)), leftX + 20, currentY, 32, WHITE);
+            DrawText(TextFormat("Lv.%d %s", weapon->level, WeaponNames[weapon->weaponType]), leftX + 20, currentY, 32, WHITE);
             currentY += 40;
         }
     }
@@ -792,7 +804,7 @@ void HUD_DrawInventory()
     for (i32 i = 0; i < MAX_RELIC_CAPACITY; i++) {
         RelicData* relic = &globalVariables.inventory.relicDatas[i];
         if (relic->level > 0) {
-            DrawText(TextFormat("Lv.%d %s", relic->level, Relic_GetRelicName(relic->relicType)), leftX + 20, currentY, 32, WHITE);
+            DrawText(TextFormat("Lv.%d %s", relic->level, RelicNames[relic->relicType]), leftX + 20, currentY, 32, WHITE);
             currentY += 40;
         }
     }
@@ -894,27 +906,8 @@ void HUD_DrawLevelUp()
         const char* name = "";
         Color themeColor = WHITE;
 
-        if (opt->type == UPGRADE_TYPE_WEAPON) {
-            name = Weapon_GetWeaponName(opt->weapon);
-            switch (opt->weapon) {
-                case WEAPON_TYPE_CRYSTAL_WAND: themeColor = (Color){135, 206, 250, 255}; break; // Sky Blue
-                case WEAPON_TYPE_FIREBALL_RING: themeColor = ORANGE; break;
-                case WEAPON_TYPE_BOMB_SHOES: themeColor = GRAY; break;
-                case WEAPON_TYPE_NATURE_SPIKES: themeColor = LIME; break;
-                case WEAPON_TYPE_DEATH_AURA: themeColor = (Color){50, 50, 50, 255}; break;
-            }
-        } else {
-            name = Relic_GetRelicName(opt->relic);
-            switch (opt->relic) {
-                case RELIC_TYPE_HEALTH: themeColor = PINK; break;
-                case RELIC_TYPE_DAMAGE: themeColor = RED; break;
-                case RELIC_TYPE_ATTACK_SPEED: themeColor = YELLOW; break;
-                case RELIC_TYPE_MOVEMENT_SPEED: themeColor = BLUE; break;
-                case RELIC_TYPE_SIZE: themeColor = PURPLE; break;
-                case RELIC_TYPE_LIFE_STEAL: themeColor = (Color){128, 0, 32, 255}; break; // Wine
-                case RELIC_TYPE_XP: themeColor = SKYBLUE; break;
-            }
-        }
+        name = opt->type == UPGRADE_TYPE_WEAPON ? WeaponNames[opt->weapon] : RelicNames[opt->relic];
+        themeColor = opt->type == UPGRADE_TYPE_WEAPON ? WeaponColors[opt->weapon] : RelicColors[opt->relic];
 
         // Draw Name
         i32 nameSize = 35;
@@ -1004,7 +997,7 @@ void HUD_GenerateLevelUpOptions()
     for (i32 i = 0; i < MAX_WEAPON_CAPACITY; i++) if (globalVariables.inventory.weaponDatas[i].level > 0) currentWeaponCount++;
 
     // Weapon Candidates
-    for (i32 i = 0; i < WEAPON_TYPE_COUNT; i++) {
+    for (i32 i = 1; i < WEAPON_TYPE_COUNT; i++) {
         WeaponType type = (WeaponType)i;
         i32 invIdx = -1;
         for (i32 j = 0; j < MAX_WEAPON_CAPACITY; j++) {
@@ -1035,7 +1028,7 @@ void HUD_GenerateLevelUpOptions()
     for (i32 i = 0; i < MAX_RELIC_CAPACITY; i++) if (globalVariables.inventory.relicDatas[i].level > 0) currentRelicCount++;
 
     // Relic Candidates
-    for (i32 i = 0; i < RELIC_TYPE_COUNT; i++) {
+    for (i32 i = 1; i < RELIC_TYPE_COUNT; i++) {
         RelicType type = (RelicType)i;
         i32 invIdx = -1;
         for (i32 j = 0; j < MAX_RELIC_CAPACITY; j++) {
@@ -1440,19 +1433,6 @@ void Relic_AddRelic(RelicType relicType) {
             Relic_ApplyEffects();
             return;
         }
-    }
-}
-const char* Relic_GetRelicName(RelicType relicType)
-{
-    switch (relicType) {
-        case RELIC_TYPE_HEALTH: return "Health Relic";
-        case RELIC_TYPE_DAMAGE: return "Damage Relic";
-        case RELIC_TYPE_ATTACK_SPEED: return "Attack Speed Relic";
-        case RELIC_TYPE_MOVEMENT_SPEED: return "Move Speed Relic";
-        case RELIC_TYPE_SIZE: return "Size Relic";
-        case RELIC_TYPE_LIFE_STEAL: return "Life Steal Relic";
-        case RELIC_TYPE_XP: return "XP Relic";
-        default: return "Unknown Relic";
     }
 }
 //~ End of Relic Implementation
@@ -2246,17 +2226,6 @@ void Weapon_ProcessAttack(f32 deltaTime)
                 } break;
             }
         }
-    }
-}
-const char* Weapon_GetWeaponName(WeaponType weaponType)
-{
-    switch (weaponType) {
-        case WEAPON_TYPE_CRYSTAL_WAND: return "Crystal Staff";
-        case WEAPON_TYPE_FIREBALL_RING: return "Fireball Ring";
-        case WEAPON_TYPE_BOMB_SHOES: return "Bomb Shoes";
-        case WEAPON_TYPE_NATURE_SPIKES: return "Nature Spikes";
-        case WEAPON_TYPE_DEATH_AURA: return "Death Aura";
-        default: return "Unknown Weapon";
     }
 }
 // ~End of Weapon Implementation

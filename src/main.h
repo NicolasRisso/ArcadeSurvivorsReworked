@@ -21,7 +21,7 @@
 #define MAX_WEAPON_LEVEL 15
 #define MAX_RELIC_CAPACITY 4
 #define MAX_RELIC_LEVEL 15
-#define MAX_ACTIVE_POWERUPS 4
+#define MAX_ACTIVE_POWERUPS 5
 
 
 #define MAP_HALF_SIZE 5000
@@ -40,7 +40,8 @@ typedef enum EntityType : u8 {
     ENTITY_TYPE_ENEMY = 4,
     ENTITY_TYPE_DAMAGE_POPUP = 5,
     ENTITY_TYPE_XP_CRYSTAL = 6,
-    ENTITY_TYPE_DROP = 7
+    ENTITY_TYPE_DROP = 7,
+    ENTITY_TYPE_COUNT = 8
 } EntityType;
 
 typedef enum ProjectileType : u8 {
@@ -50,7 +51,8 @@ typedef enum ProjectileType : u8 {
     PROJECTILE_TYPE_BOMB = 3,
     PROJECTILE_TYPE_NATURE_SPIKE = 4,
     PROJECTILE_TYPE_DEATH_AURA = 5,
-    PROJECTILE_TYPE_EXPLOSION = 6
+    PROJECTILE_TYPE_EXPLOSION = 6,
+    PROJECTILE_TYPE_COUNT = 7
 } ProjectileType;
 
 typedef enum WeaponType : u8 {
@@ -62,6 +64,8 @@ typedef enum WeaponType : u8 {
     WEAPON_TYPE_DEATH_AURA = 5,
     WEAPON_TYPE_COUNT = 6
 } WeaponType;
+const char* WeaponNames[WEAPON_TYPE_COUNT] = {"Unknown Weapon", "Crystal Staff", "Fireball Ring", "Bomb Shoes", "Nature Spikes", "Death Aura"};
+const Color WeaponColors[WEAPON_TYPE_COUNT] = { WHITE, (Color){135, 206, 250, 255}, ORANGE, GRAY, LIME, (Color){50, 50, 50, 255}};
 
 typedef enum RelicType : u8 {
     RELIC_TYPE_UNDEFINED = 0,
@@ -74,13 +78,16 @@ typedef enum RelicType : u8 {
     RELIC_TYPE_XP = 7,
     RELIC_TYPE_COUNT = 8
 } RelicType;
+const char* RelicNames[RELIC_TYPE_COUNT] = {"Unknown Relic", "Health Relic", "Damage Relic", "Attack Speed Relic", "Move Speed Relic", "Size Relic", "Life Steal Relic", "XP Relic"};
+const Color RelicColors[RELIC_TYPE_COUNT] = {WHITE, PINK, RED, YELLOW, BLUE, PURPLE, (Color){128, 0, 32, 255}, SKYBLUE};
 
 typedef enum EnemyType : u8 {
     ENEMY_TYPE_UNDEFINED = 0,
     ENEMY_TYPE_NORMAL = 1,
     ENEMY_TYPE_FAST = 2,
     ENEMY_TYPE_TANK = 3,
-    ENEMY_TYPE_BOSS = 4
+    ENEMY_TYPE_BOSS = 4,
+    ENEMY_TYPE_COUNT = 5
 } EnemyType;
 
 typedef enum PowerUpType : u8 {
@@ -88,13 +95,16 @@ typedef enum PowerUpType : u8 {
     POWERUP_TYPE_NUKE = 1,
     POWERUP_TYPE_DOUBLE_TROUBLE = 2,
     POWERUP_TYPE_TIME_FREEZE = 3,
-    POWERUP_TYPE_MAGNET = 4
+    POWERUP_TYPE_MAGNET = 4,
+    POWERUP_TYPE_COUNT = 5
 } PowerUpType;
+const char* PowerUpNames[POWERUP_TYPE_COUNT] = {"Unknown Powerup", "NUKE", "DOUBLE TROUBLE", "TIME FREEZE", "MAGNET"};
 
 typedef enum InstantDropType : u8 {
     INSTANT_DROP_TYPE_UNDEFINED = 0,
     INSTANT_DROP_TYPE_LIFE = 1,
-    INSTANT_DROP_TYPE_BIG_LIFE = 2
+    INSTANT_DROP_TYPE_BIG_LIFE = 2,
+    INSTANT_DROP_TYPE_COUNT = 3
 } InstantDropType;
 
 typedef enum DropType : u8 {
@@ -475,7 +485,6 @@ void Projectile_ProcessAllMovement(f32 deltaTime);
 void Relic_GenerateRelicDefinition();
 void Relic_AddRelic(RelicType relicType); //This function also levels up relics
 void Relic_ApplyEffects();
-const char* Relic_GetRelicName(RelicType relicType);
 //~ End of Relic Implementation
 
 //~ Begin of Render Implementation
@@ -493,7 +502,6 @@ void Spawner_ProcessSpawnLogic(f32 deltaTime);
 void Weapon_GenerateWeaponLevels();
 bool Weapon_AddWeapon(WeaponType weaponType); //This function also levels up weapons
 void Weapon_ProcessAttack(f32 deltaTime);
-const char* Weapon_GetWeaponName(WeaponType weaponType);
 //~ End of Weapon Implementation
 
 //~ Begin of XP Implementation
