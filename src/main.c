@@ -55,7 +55,7 @@ void Core_InitGame()
     globalVariables.camera = Player_GenerateCamera();
 
     globalVariables.spawnerData = Spawner_GenerateSpawnerData();
-    Weapon_GenerateWeaponLevels();
+    Weapon_Init();
     Weapon_AddWeapon((WeaponType)GetRandomValue(1, WEAPON_TYPE_COUNT - 1));
 
     // Initialize Drops
@@ -2000,8 +2000,55 @@ void Spawner_ProcessSpawnLogic(f32 deltaTime)
 // ~End of Spawner Implementation
 
 //~ Begin of Weapon Implementation
-void Weapon_GenerateWeaponLevels()
-{
+// Specialized Weapon Actions
+typedef void (*WeaponTickFn)(WeaponData* weaponData, WeaponDefinition* weaponDefinition, Entity* player, f32 deltaTime, f32 attackSpeed);
+static WeaponTickFn weaponTickActions[WEAPON_TYPE_COUNT];
+static void Action_CrystalWand(WeaponData* weaponData, WeaponDefinition* weaponDefinition, Entity* player, f32 deltaTime, f32 attackSpeed) {
+    if (weaponData->burstRemaining > 0 && (weaponData->burstTimer -= deltaTime) <= 0) {
+        i32 tid = -1; f32 mD = 99999.0f;
+        for (i32 j = 0; j < globalVariables.lastEntityIndex; j++) if (globalVariables.entities[j].type == ENTITY_TYPE_ENEMY) { f32 d = Vector2Distance(player->position, globalVariables.entities[j].position); if (d < mD) { mD = d; tid = j; }}
+        if (tid != -1) { Entity prj = Projectile_Spawn(PROJECTILE_TYPE_CRYSTAL_SHARD, player->position, Vector2Scale(Vector2Normalize(Vector2Subtract(globalVariables.entities[tid].position, player->position)), 600.0f), weaponDefinition->damage, 3.0f, weaponDefinition->crystal.penetration); Global_AddEntity(&prj); weaponData->burstRemaining--; weaponData->burstTimer = 0.1f; }
+    }
+    if ((weaponData->attackTimer -= deltaTime) <= 0) { weaponData->attackTimer = weaponDefinition->delayBetweenAttacks / attackSpeed; weaponData->burstRemaining = weaponDefinition->projectileAmount; weaponData->burstTimer = 0.0f; }
+}
+static void Action_FireballRing(WeaponData* weaponData, WeaponDefinition* weaponDefinition, Entity* player, f32 deltaTime, f32 attackSpeed) {
+    if ((weaponData->attackTimer -= deltaTime) <= 0) {
+        weaponData->attackTimer = weaponDefinition->delayBetweenAttacks / attackSpeed; Vector2 dirs[4] = {{0,-1}, {0,1}, {-1,0}, {1,0}};
+        for (i32 d = 0; d < 4; d++) for (i32 a = 0; a < weaponDefinition->projectileAmount; a++) {
+            Entity prj = Projectile_Spawn(PROJECTILE_TYPE_FIREBALL, player->position, Vector2Scale(Vector2Rotate(dirs[d], (a - (weaponDefinition->projectileAmount-1)/2.0f) * 0.2f), 400.0f), weaponDefinition->damage, 4.0f, 1);
+            prj.projectile.explosive.explosionRadius = weaponDefinition->fireball.explosionRadius; prj.projectile.explosive.explosionDamageMultiplier = weaponDefinition->fireball.explosionDamageMultipler; Global_AddEntity(&prj);
+        }
+    }
+}
+static void Action_BombShoes(WeaponData* weaponData, WeaponDefinition* weaponDefinition, Entity* player, f32 deltaTime, f32 attackSpeed) {
+    if ((weaponData->attackTimer -= deltaTime) <= 0) {
+        weaponData->attackTimer = weaponDefinition->delayBetweenAttacks / attackSpeed; Entity prj = Projectile_Spawn(PROJECTILE_TYPE_BOMB, player->position, (Vector2){0}, weaponDefinition->damage, 10.0f, 1);
+        prj.projectile.timer = weaponDefinition->bombShoes.delayToExplode; prj.radius = weaponDefinition->bombShoes.explosionRadius; Global_AddEntity(&prj);
+    }
+}
+static void Action_NatureSpikes(WeaponData* weaponData, WeaponDefinition* weaponDefinition, Entity* player, f32 deltaTime, f32 attackSpeed) {
+    if ((weaponData->attackTimer -= deltaTime) <= 0) {
+        weaponData->attackTimer = weaponDefinition->delayBetweenAttacks / attackSpeed;
+        for (i32 a = 0; a < weaponDefinition->projectileAmount; a++) {
+            i32 cand[100], cc = 0;
+            for (i32 j = 0; j < globalVariables.lastEntityIndex && cc < 100; j++) if (globalVariables.entities[j].type == ENTITY_TYPE_ENEMY && Vector2Distance(player->position, globalVariables.entities[j].position) < weaponDefinition->natureSpikes.rangeToSpawn) cand[cc++] = j;
+            if (cc > 0) { Entity prj = Projectile_Spawn(PROJECTILE_TYPE_NATURE_SPIKE, globalVariables.entities[cand[GetRandomValue(0, cc-1)]].position, (Vector2){0}, weaponDefinition->damage, weaponDefinition->natureSpikes.spikeDuration, weaponDefinition->natureSpikes.spikeMaxDamage); prj.radius = 40.0f * globalVariables.playerStats.sizeMultiplier; Global_AddEntity(&prj); }
+        }
+    }
+}
+static void Action_DeathAura(WeaponData* weaponData, WeaponDefinition* weaponDefinition, Entity* player, f32 deltaTime, f32 attackSpeed) {
+    if ((weaponData->attackTimer -= deltaTime) <= 0) {
+        weaponData->attackTimer = weaponDefinition->delayBetweenAttacks / attackSpeed;
+        if (globalVariables.deathAuraIndex >= globalVariables.lastEntityIndex) { Entity prj = Projectile_Spawn(PROJECTILE_TYPE_DEATH_AURA, player->position, (Vector2){0}, weaponDefinition->damage, 99999.0f, 255); prj.radius = weaponDefinition->deathAura.size * globalVariables.playerStats.sizeMultiplier; prj.projectile.timer = 0.0f; Global_AddEntity(&prj); }
+        else { Entity* aura = &globalVariables.entities[globalVariables.deathAuraIndex]; aura->radius = weaponDefinition->deathAura.size * globalVariables.playerStats.sizeMultiplier; aura->projectile.damage = weaponDefinition->damage * globalVariables.playerStats.damageMultiplier; }
+    }
+}
+void Weapon_Init() {
+    weaponTickActions[WEAPON_TYPE_CRYSTAL_WAND] = Action_CrystalWand;
+    weaponTickActions[WEAPON_TYPE_FIREBALL_RING] = Action_FireballRing;
+    weaponTickActions[WEAPON_TYPE_BOMB_SHOES] = Action_BombShoes;
+    weaponTickActions[WEAPON_TYPE_NATURE_SPIKES] = Action_NatureSpikes;
+    weaponTickActions[WEAPON_TYPE_DEATH_AURA] = Action_DeathAura;
     for (i32 i = 0; i < MAX_WEAPON_LEVEL; i++) {
         f32 l = (f32)i; InventoryDefinitions* defs = &globalVariables.InventoryDefinitions;
         defs->weaponDefinitions[WEAPON_TYPE_CRYSTAL_WAND][i] = (WeaponDefinition){ 15.1f + l*5, 4.0f, (i==14?8:1+i/2), .crystal = {2+i+(i==14?14:0)} };
@@ -2011,127 +2058,20 @@ void Weapon_GenerateWeaponLevels()
         defs->weaponDefinitions[WEAPON_TYPE_DEATH_AURA][i] = (WeaponDefinition){ 5.1f + l*1.78f, 0.25f-l*0.0089f, 1, .deathAura = {150.0f+l*30} };
     }
 }
-bool Weapon_AddWeapon(WeaponType weaponType)
-{
-    for (i32 i = 0; i < MAX_WEAPON_CAPACITY; i++) {
-        if (globalVariables.inventory.weaponDatas[i].level > 0 && 
-            globalVariables.inventory.weaponDatas[i].weaponType == weaponType) {
-            if (globalVariables.inventory.weaponDatas[i].level < MAX_WEAPON_LEVEL) {
-                globalVariables.inventory.weaponDatas[i].level++;
-            }
-            return true;
-        }
-    }
 
-    for (i32 i = 0; i < MAX_WEAPON_CAPACITY; i++) {
-        if (globalVariables.inventory.weaponDatas[i].level == 0) {
-            globalVariables.inventory.weaponDatas[i].weaponType = weaponType;
-            globalVariables.inventory.weaponDatas[i].level = 1;
-            globalVariables.inventory.weaponDatas[i].attackTimer = 0.1f;
-            globalVariables.inventory.weaponDatas[i].burstRemaining = 0;
-            return true;
-        }
-    }
+bool Weapon_AddWeapon(WeaponType weaponType) {
+    for (i32 i = 0; i < MAX_WEAPON_CAPACITY; i++) if (globalVariables.inventory.weaponDatas[i].level > 0 && globalVariables.inventory.weaponDatas[i].weaponType == weaponType) { if (globalVariables.inventory.weaponDatas[i].level < MAX_WEAPON_LEVEL) globalVariables.inventory.weaponDatas[i].level++; return true; }
+    for (i32 i = 0; i < MAX_WEAPON_CAPACITY; i++) if (globalVariables.inventory.weaponDatas[i].level == 0) { globalVariables.inventory.weaponDatas[i] = (WeaponData){ .weaponType = weaponType, .level = 1, .attackTimer = 0.1f }; return true; }
     return false;
 }
-void Weapon_ProcessAttack(f32 deltaTime)
-{
-    Entity* player = Global_GetPlayer();
-    if (!player) return;
 
+void Weapon_ProcessAttack(f32 deltaTime) {
+    Entity* player = Global_GetPlayer(); if (!player) return;
+    f32 attackSpeed = globalVariables.playerStats.attackSpeedMultiplier * (globalVariables.activePowerUps[POWERUP_TYPE_DOUBLE_TROUBLE].bIsActive ? 2.0f : 1.0f);
     for (i32 i = 0; i < MAX_WEAPON_CAPACITY; i++) {
-        WeaponData* weapon = &globalVariables.inventory.weaponDatas[i];
-        if (weapon->level == 0) continue;
-
-        WeaponDefinition* weaponDef = &globalVariables.InventoryDefinitions.weaponDefinitions[weapon->weaponType][weapon->level - 1];
-        if (!weaponDef) continue;
-
-        weapon->attackTimer -= deltaTime;
-
-        if (weapon->weaponType == WEAPON_TYPE_CRYSTAL_WAND && weapon->burstRemaining > 0) {
-            weapon->burstTimer -= deltaTime;
-            if (weapon->burstTimer <= 0) {
-                f32 minDist = 99999.0f;
-                i32 targetIdx = -1;
-                for (i32 j = 0; j < globalVariables.lastEntityIndex; j++) {
-                    if (globalVariables.entities[j].type == ENTITY_TYPE_ENEMY) {
-                        f32 dist = Vector2Distance(player->position, globalVariables.entities[j].position);
-                        if (dist < minDist) { minDist = dist; targetIdx = j; }
-                    }
-                }
-
-                if (targetIdx != -1) {
-                    Vector2 dir = Vector2Normalize(Vector2Subtract(globalVariables.entities[targetIdx].position, player->position));
-                    Entity projectile = Projectile_Spawn(PROJECTILE_TYPE_CRYSTAL_SHARD, player->position, Vector2Scale(dir, 600.0f), weaponDef->damage, 3.0f, weaponDef->crystal.penetration);
-                    Global_AddEntity(&projectile);
-                    weapon->burstRemaining--;
-                    weapon->burstTimer = 0.1f;
-                }
-            }
-        }
-
-        f32 attackSpeedMult = globalVariables.playerStats.attackSpeedMultiplier;
-        if (globalVariables.activePowerUps[POWERUP_TYPE_DOUBLE_TROUBLE].bIsActive) attackSpeedMult *= 2.0f;
-
-        if (weapon->attackTimer <= 0) {
-            weapon->attackTimer = weaponDef->delayBetweenAttacks / attackSpeedMult;
-
-            switch (weapon->weaponType) {
-                case WEAPON_TYPE_CRYSTAL_WAND:
-                    weapon->burstRemaining = weaponDef->projectileAmount;
-                    weapon->burstTimer = 0.0f;
-                    break;
-                case WEAPON_TYPE_FIREBALL_RING: {
-                    Vector2 dirs[4] = {{0,-1}, {0,1}, {-1,0}, {1,0}};
-                    for (i32 d = 0; d < 4; d++) {
-                        for (i32 amt = 0; amt < weaponDef->projectileAmount; amt++) {
-                             Vector2 offsetDir = Vector2Rotate(dirs[d], (amt - (weaponDef->projectileAmount-1)/2.0f) * 0.2f);
-                             Entity projectile = Projectile_Spawn(PROJECTILE_TYPE_FIREBALL, player->position, Vector2Scale(offsetDir, 400.0f), weaponDef->damage, 4.0f, 1);
-                             projectile.projectile.explosive.explosionRadius = weaponDef->fireball.explosionRadius; 
-                             projectile.projectile.explosive.explosionDamageMultiplier = weaponDef->fireball.explosionDamageMultipler;
-                             Global_AddEntity(&projectile);
-                        }
-                    }
-                } break;
-                case WEAPON_TYPE_BOMB_SHOES: {
-                    Entity projectile = Projectile_Spawn(PROJECTILE_TYPE_BOMB, player->position, (Vector2){0,0}, weaponDef->damage, 10.0f, 1);
-                    projectile.projectile.timer = weaponDef->bombShoes.delayToExplode;
-                    projectile.radius = weaponDef->bombShoes.explosionRadius;
-                    Global_AddEntity(&projectile);
-                } break;
-                case WEAPON_TYPE_NATURE_SPIKES: {
-                    for (i32 amt = 0; amt < weaponDef->projectileAmount; amt++) {
-                        i32 candidates[100]; i32 cCount = 0;
-                        for (i32 j = 0; j < globalVariables.lastEntityIndex && cCount < 100; j++) {
-                            if (globalVariables.entities[j].type == ENTITY_TYPE_ENEMY) {
-                                if (Vector2Distance(player->position, globalVariables.entities[j].position) < weaponDef->natureSpikes.rangeToSpawn) {
-                                    candidates[cCount++] = j;
-                                }
-                            }
-                        }
-                        if (cCount > 0) {
-                            i32 targetIdx = candidates[GetRandomValue(0, cCount-1)];
-                            Entity projectile = Projectile_Spawn(PROJECTILE_TYPE_NATURE_SPIKE, globalVariables.entities[targetIdx].position, (Vector2){0,0}, weaponDef->damage, weaponDef->natureSpikes.spikeDuration, weaponDef->natureSpikes.spikeMaxDamage);
-                            projectile.radius = 40.0f * globalVariables.playerStats.sizeMultiplier;
-                            Global_AddEntity(&projectile);
-                        }
-                    }
-                } break;
-                case WEAPON_TYPE_DEATH_AURA: {
-                    if (globalVariables.deathAuraIndex >= globalVariables.lastEntityIndex) {
-                        Entity projectile = Projectile_Spawn(PROJECTILE_TYPE_DEATH_AURA, player->position, (Vector2){0,0}, weaponDef->damage, 99999.0f, 255);
-                        projectile.radius = weaponDef->deathAura.size * globalVariables.playerStats.sizeMultiplier;
-                        projectile.projectile.timer = 0.0f; // Use this as tick timer
-                        Global_AddEntity(&projectile);
-                    } else {
-                        // Update existing aura stats if needed
-                        Entity* aura = &globalVariables.entities[globalVariables.deathAuraIndex];
-                        aura->radius = weaponDef->deathAura.size * globalVariables.playerStats.sizeMultiplier;
-                        aura->projectile.damage = weaponDef->damage * globalVariables.playerStats.damageMultiplier;
-                    }
-                } break;
-            }
-        }
+        WeaponData* weaponData = &globalVariables.inventory.weaponDatas[i]; if (weaponData->level == 0) continue;
+        WeaponDefinition* weaponDefinition = &globalVariables.InventoryDefinitions.weaponDefinitions[weaponData->weaponType][weaponData->level - 1];
+        if (weaponTickActions[weaponData->weaponType]) weaponTickActions[weaponData->weaponType](weaponData, weaponDefinition, player, deltaTime, attackSpeed);
     }
 }
 // ~End of Weapon Implementation

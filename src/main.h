@@ -295,7 +295,7 @@ void Spawner_ProcessSpawnLogic(f32 deltaTime);
 //~ End of Spawner Implementation
 
 //~ Begin of Weapon Implementation
-void Weapon_GenerateWeaponLevels();
+void Weapon_Init();
 bool Weapon_AddWeapon(WeaponType weaponType); //This function also levels up weapons
 void Weapon_ProcessAttack(f32 deltaTime);
 //~ End of Weapon Implementation
