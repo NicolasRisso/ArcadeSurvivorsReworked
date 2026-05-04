@@ -309,80 +309,172 @@ void HUD_GenerateLevelUpOptions() {
 
 // ~Begin of Player Implementation
 Camera2D Player_GenerateCamera() {
-    return (Camera2D){ .target = Global_GetPlayer()->position, .offset = {GetScreenWidth() / 2.0f, GetScreenHeight() / 2.0f}, .rotation = 0.0f, .zoom = 1.0f };
+    Vector2 offset = { GetScreenWidth() / 2.0f, GetScreenHeight() / 2.0f };
+    return (Camera2D){ .target = Global_GetPlayer()->position, .offset = offset, .rotation = 0.0f, .zoom = 1.0f };
 }
 Entity Player_GeneratePlayer() {
-    return (Entity){ .type = ENTITY_TYPE_PLAYER, .scale = {2, 2}, .radius = 40, .visualType = VISUAL_TYPE_ANIMATED_SPRITE, .character = { .speed = 400, .health = 100, .maxHealth = 100 }, .animatedSprite = { .spriteID = ASSET_SPRITE_TYPE_PLAYER, .frameCount = 2, .frameTime = 0.1f } };
+    return (Entity){
+        .type = ENTITY_TYPE_PLAYER, .scale = {2, 2}, .radius = 40, .visualType = VISUAL_TYPE_ANIMATED_SPRITE,
+        .character = { .speed = 400, .health = 100, .maxHealth = 100 },
+        .animatedSprite = { .spriteID = ASSET_SPRITE_TYPE_PLAYER, .frameCount = 2, .frameTime = 0.1f }
+    };
 }
 PlayerStats Player_GeneratePlayerStats() {
     return (PlayerStats){ .nextLevelXP = 200, .healthMultiplier = 1, .damageMultiplier = 1, .attackSpeedMultiplier = 1, .movementSpeedMultiplier = 1, .sizeMultiplier = 1, .xpMultiplier = 1 };
 }
 void Player_ProcessMovement(Entity* player, f32 deltaTime) {
     if (!player) return;
-    if (player->type == ENTITY_TYPE_UNDEFINED) { if (player->character.deathFadeTimer > 0) player->character.deathFadeTimer -= deltaTime; return; }
-    player->position = Vector2Add(player->position, Vector2Scale(player->velocity, deltaTime)); Collision_MapBorder(player);
+    if (player->type == ENTITY_TYPE_UNDEFINED) {
+        if (player->character.deathFadeTimer > 0) player->character.deathFadeTimer -= deltaTime;
+        return;
+    }
+
+    player->position = Vector2Add(player->position, Vector2Scale(player->velocity, deltaTime));
+    Collision_MapBorder(player);
+
     globalVariables.camera.target = Vector2Lerp(globalVariables.camera.target, player->position, 10.0f * deltaTime);
+
     if (player->character.invulnerableTimer > 0) player->character.invulnerableTimer -= deltaTime;
-    if (player->character.flashTimer > 0) player->character.flashTimer -= deltaTime; Player_AnimateMovement(player, deltaTime);
+    if (player->character.flashTimer > 0) player->character.flashTimer -= deltaTime;
+    Player_AnimateMovement(player, deltaTime);
 }
 void Player_AnimateMovement(Entity* player, f32 deltaTime) {
-    if (Vector2Length(player->velocity) > 0) {
-        if ((player->animatedSprite.frameTimer += deltaTime) >= player->animatedSprite.frameTime) { player->animatedSprite.frameTimer = 0; if (++player->animatedSprite.currentFrame > player->animatedSprite.frameCount) player->animatedSprite.currentFrame = 0; }
-        if (player->velocity.x != 0) player->animatedSprite.flipX = player->velocity.x < 0;
-    } else { player->animatedSprite.currentFrame = 0; player->animatedSprite.frameTimer = 0; }
+    AnimatedSpriteData* sprite = &player->animatedSprite;
+    if (Vector2Length(player->velocity) <= 0) {
+        sprite->currentFrame = 0; sprite->frameTimer = 0;
+        return;
+    }
+
+    if ((sprite->frameTimer += deltaTime) >= sprite->frameTime) {
+        sprite->frameTimer = 0;
+        if (++sprite->currentFrame > sprite->frameCount) sprite->currentFrame = 0;
+    }
+
+    if (player->velocity.x != 0) sprite->flipX = (player->velocity.x < 0);
 }
 //~ End of Player Implementation
 
 //~ Begin of Popup Implementation
 Entity Popup_SpawnDamagePopup(Vector2 position, f32 amount) {
     Entity popup = { .type = ENTITY_TYPE_DAMAGE_POPUP, .position = position, .scale = {1, 1}, .damagePopup = { .amount = amount, .timer = 0 } };
-    Global_AddEntity(&popup); return popup;
+    Global_AddEntity(&popup);
+    return popup;
 }
 void Popup_UpdateAll(f32 deltaTime) {
     for (i32 entityIndex = 0; entityIndex < globalVariables.lastEntityIndex; entityIndex++) {
-        Entity* popup = &globalVariables.entities[entityIndex]; if (popup->type != ENTITY_TYPE_DAMAGE_POPUP) continue;
-        if ((popup->damagePopup.timer += deltaTime) >= 0.7f) { Global_DestroyEntity(entityIndex--); continue; }
-        if (popup->damagePopup.timer < 0.2f) { popup->position.y -= 100.0f * deltaTime; popup->scale.x = popup->scale.y = 1.0f + 0.25f * (popup->damagePopup.timer / 0.2f); }
-        else { f32 easeValue = sinf((popup->damagePopup.timer - 0.2f) / 0.5f * PI * 0.5f); popup->scale.x = popup->scale.y = 1.25f - 0.75f * easeValue; }
+        Entity* entity = &globalVariables.entities[entityIndex];
+        if (entity->type != ENTITY_TYPE_DAMAGE_POPUP) continue;
+
+        DamagePopup* popup = &entity->damagePopup;
+        if ((popup->timer += deltaTime) >= 0.7f) { Global_DestroyEntity(entityIndex--); continue; }
+
+        if (popup->timer < 0.2f) {
+            entity->position.y -= 100.0f * deltaTime;
+            entity->scale.x = entity->scale.y = 1.0f + 0.25f * (popup->timer / 0.2f);
+        } else {
+            f32 easeValue = sinf((popup->timer - 0.2f) / 0.5f * PI * 0.5f);
+            entity->scale.x = entity->scale.y = 1.25f - 0.75f * easeValue;
+        }
     }
 }
 //~ End of Popup Implementation
 
 //~ Begin of Projectile Implementation
-Entity Projectile_Spawn(ProjectileType projectileType, Vector2 position, Vector2 velocity, f32 damage, f32 lifeTime, u8 penetration) {
-    Entity projectile = { .type = ENTITY_TYPE_PROJECTILE, .position = position, .velocity = velocity, .scale = {1, 1}, .radius = 10, .projectile = { .projectileType = projectileType, .damage = damage * globalVariables.playerStats.damageMultiplier * (globalVariables.activePowerUps[POWERUP_TYPE_DOUBLE_TROUBLE].bIsActive ? 2.0f : 1.0f), .lifeTime = lifeTime, .penetration = penetration } };
-    if (projectileType == PROJECTILE_TYPE_CRYSTAL_SHARD || projectileType == PROJECTILE_TYPE_NATURE_SPIKE) for (i32 hitIndex = 0; hitIndex < 16; hitIndex++) projectile.projectile.hitTracking.hitIds[hitIndex] = 65535;
-    else { projectile.projectile.explosive.explosionDamageMultiplier = 1.0f; projectile.projectile.explosive.explosionRadius = 0.0f; }
-    if (projectileType == PROJECTILE_TYPE_NATURE_SPIKE) projectile.projectile.timer = 0.0f; return projectile;
+Entity Projectile_Spawn(ProjectileType type, Vector2 pos, Vector2 vel, f32 damage, f32 lifeTime, u8 penetration) {
+    f32 damageMultiplier = globalVariables.playerStats.damageMultiplier;
+    if (globalVariables.activePowerUps[POWERUP_TYPE_DOUBLE_TROUBLE].bIsActive) damageMultiplier *= 2.0f;
+
+    Entity projectile = {
+        .type = ENTITY_TYPE_PROJECTILE, .position = pos, .velocity = vel, .scale = {1, 1}, .radius = 10,
+        .projectile = { .projectileType = type, .damage = damage * damageMultiplier, .lifeTime = lifeTime, .penetration = penetration }
+    };
+
+    if (type == PROJECTILE_TYPE_CRYSTAL_SHARD || type == PROJECTILE_TYPE_NATURE_SPIKE) {
+        for (i32 hitIndex = 0; hitIndex < 16; hitIndex++) projectile.projectile.hitTracking.hitIds[hitIndex] = 65535;
+    } else {
+        projectile.projectile.explosive.explosionDamageMultiplier = 1.0f;
+        projectile.projectile.explosive.explosionRadius = 0.0f;
+    }
+
+    if (type == PROJECTILE_TYPE_NATURE_SPIKE) projectile.projectile.timer = 0.0f;
+    return projectile;
 }
+
 void Projectile_ProcessAllMovement(f32 deltaTime) {
     Entity* player = Global_GetPlayer();
     for (i32 projectileIndex = 0; projectileIndex < globalVariables.lastEntityIndex; projectileIndex++) {
-        Entity* projectile = &globalVariables.entities[projectileIndex]; if (projectile->type != ENTITY_TYPE_PROJECTILE) continue;
+        Entity* projectile = &globalVariables.entities[projectileIndex];
+        if (projectile->type != ENTITY_TYPE_PROJECTILE) continue;
         if ((projectile->projectile.lifeTime -= deltaTime) <= 0) { Global_DestroyEntity(projectileIndex--); continue; }
-        ProjectileType projectileType = projectile->projectile.projectileType;
-        if (projectileType == PROJECTILE_TYPE_NATURE_SPIKE && (projectile->projectile.timer -= deltaTime) <= 0) { projectile->projectile.timer = 0.2f; for (i32 hitIndex = 0; hitIndex < 16; hitIndex++) projectile->projectile.hitTracking.hitIds[hitIndex] = 65535; }
-        if (projectileType == PROJECTILE_TYPE_CRYSTAL_SHARD || projectileType == PROJECTILE_TYPE_FIREBALL) projectile->position = Vector2Add(projectile->position, Vector2Scale(projectile->velocity, deltaTime));
-        if (projectileType == PROJECTILE_TYPE_BOMB && (projectile->projectile.timer -= deltaTime) <= 0) { Entity explosion = Projectile_Spawn(PROJECTILE_TYPE_EXPLOSION, projectile->position, (Vector2){0}, projectile->projectile.damage, 0.2f, 255); explosion.radius = projectile->radius; Global_AddEntity(&explosion); Global_DestroyEntity(projectileIndex--); Audio_PlaySoundVar(ASSET_SOUND_TYPE_EXPLOSION, false); continue; }
-        if (projectileType == PROJECTILE_TYPE_DEATH_AURA) {
-            projectile->position = player->position; if ((projectile->projectile.timer -= deltaTime) <= 0) {
-                u8 weaponLevel = 1; for (i32 weaponIndex = 0; weaponIndex < MAX_WEAPON_CAPACITY; weaponIndex++) if (globalVariables.inventory.weaponDatas[weaponIndex].level > 0 && globalVariables.inventory.weaponDatas[weaponIndex].weaponType == WEAPON_TYPE_DEATH_AURA) { weaponLevel = globalVariables.inventory.weaponDatas[weaponIndex].level; break; }
-                projectile->projectile.timer = globalVariables.InventoryDefinitions.weaponDefinitions[WEAPON_TYPE_DEATH_AURA][weaponLevel-1].delayBetweenAttacks / globalVariables.playerStats.attackSpeedMultiplier;
-                for (i32 enemyIndex = 0; enemyIndex < globalVariables.lastEntityIndex; enemyIndex++) if (globalVariables.entities[enemyIndex].type == ENTITY_TYPE_ENEMY && CheckCollisionCircles(projectile->position, projectile->radius, globalVariables.entities[enemyIndex].position, globalVariables.entities[enemyIndex].radius)) Global_DealDamageToEnemy(enemyIndex, projectile->projectile.damage, true);
-            }
+
+        ProjectileType type = projectile->projectile.projectileType;
+        if (type == PROJECTILE_TYPE_NATURE_SPIKE && (projectile->projectile.timer -= deltaTime) <= 0) {
+            projectile->projectile.timer = 0.2f;
+            for (i32 hitIndex = 0; hitIndex < 16; hitIndex++) projectile->projectile.hitTracking.hitIds[hitIndex] = 65535;
         }
-        if (projectileType != PROJECTILE_TYPE_EXPLOSION && projectileType != PROJECTILE_TYPE_BOMB && projectileType != PROJECTILE_TYPE_DEATH_AURA) {
-            for (i32 enemyIndex = 0; enemyIndex < globalVariables.lastEntityIndex; enemyIndex++) {
-                Entity* enemy = &globalVariables.entities[enemyIndex]; if (enemy->type != ENTITY_TYPE_ENEMY || !CheckCollisionCircles(projectile->position, projectile->radius, enemy->position, enemy->radius)) continue;
-                bool bAlreadyHit = false; if (projectileType == PROJECTILE_TYPE_CRYSTAL_SHARD || projectileType == PROJECTILE_TYPE_NATURE_SPIKE) for (i32 hitSearchIndex = 0; hitSearchIndex < 16; hitSearchIndex++) if (projectile->projectile.hitTracking.hitIds[hitSearchIndex] == enemy->id) { bAlreadyHit = true; break; }
-                if (!bAlreadyHit) {
-                    Global_DealDamageToEnemy(enemyIndex, projectile->projectile.damage, projectileType == PROJECTILE_TYPE_NATURE_SPIKE);
-                    if (projectileType == PROJECTILE_TYPE_CRYSTAL_SHARD || projectileType == PROJECTILE_TYPE_NATURE_SPIKE) { for (i32 shiftIndex = 15; shiftIndex > 0; shiftIndex--) projectile->projectile.hitTracking.hitIds[shiftIndex] = projectile->projectile.hitTracking.hitIds[shiftIndex-1]; projectile->projectile.hitTracking.hitIds[0] = enemy->id; }
-                    if (projectileType == PROJECTILE_TYPE_FIREBALL) { Entity explosion = Projectile_Spawn(PROJECTILE_TYPE_EXPLOSION, projectile->position, (Vector2){0}, projectile->projectile.damage * projectile->projectile.explosive.explosionDamageMultiplier, 0.2f, 255); explosion.radius = projectile->projectile.explosive.explosionRadius; Global_AddEntity(&explosion); Global_DestroyEntity(projectileIndex--); Audio_PlaySoundVar(ASSET_SOUND_TYPE_EXPLOSION, false); goto next_projectile; }
-                    if (--projectile->projectile.penetration <= 0) { Global_DestroyEntity(projectileIndex--); goto next_projectile; }
+
+        if (type == PROJECTILE_TYPE_CRYSTAL_SHARD || type == PROJECTILE_TYPE_FIREBALL) {
+            projectile->position = Vector2Add(projectile->position, Vector2Scale(projectile->velocity, deltaTime));
+        }
+
+        if (type == PROJECTILE_TYPE_BOMB && (projectile->projectile.timer -= deltaTime) <= 0) {
+            Entity explosion = Projectile_Spawn(PROJECTILE_TYPE_EXPLOSION, projectile->position, (Vector2){0}, projectile->projectile.damage, 0.2f, 255);
+            explosion.radius = projectile->radius; Global_AddEntity(&explosion);
+            Global_DestroyEntity(projectileIndex--); Audio_PlaySoundVar(ASSET_SOUND_TYPE_EXPLOSION, false);
+            continue;
+        }
+
+        if (type == PROJECTILE_TYPE_DEATH_AURA) {
+            projectile->position = player->position;
+            if ((projectile->projectile.timer -= deltaTime) <= 0) {
+                u8 weaponLevel = 1;
+                for (i32 weaponIndex = 0; weaponIndex < MAX_WEAPON_CAPACITY; weaponIndex++) {
+                    WeaponData* weapon = &globalVariables.inventory.weaponDatas[weaponIndex];
+                    if (weapon->level > 0 && weapon->weaponType == WEAPON_TYPE_DEATH_AURA) {
+                        weaponLevel = weapon->level; break;
+                    }
+                }
+                f32 attackSpeed = globalVariables.playerStats.attackSpeedMultiplier;
+                projectile->projectile.timer = globalVariables.InventoryDefinitions.weaponDefinitions[WEAPON_TYPE_DEATH_AURA][weaponLevel-1].delayBetweenAttacks / attackSpeed;
+                for (i32 enemyIndex = 0; enemyIndex < globalVariables.lastEntityIndex; enemyIndex++) {
+                    Entity* enemy = &globalVariables.entities[enemyIndex];
+                    if (enemy->type == ENTITY_TYPE_ENEMY && CheckCollisionCircles(projectile->position, projectile->radius, enemy->position, enemy->radius))
+                        Global_DealDamageToEnemy(enemyIndex, projectile->projectile.damage, true);
                 }
             }
-        } else if (projectileType == PROJECTILE_TYPE_EXPLOSION) for (i32 enemyIndex = 0; enemyIndex < globalVariables.lastEntityIndex; enemyIndex++) if (globalVariables.entities[enemyIndex].type == ENTITY_TYPE_ENEMY && CheckCollisionCircles(projectile->position, projectile->radius, globalVariables.entities[enemyIndex].position, globalVariables.entities[enemyIndex].radius)) Global_DealDamageToEnemy(enemyIndex, projectile->projectile.damage, true);
+        }
+
+        if (type != PROJECTILE_TYPE_EXPLOSION && type != PROJECTILE_TYPE_BOMB && type != PROJECTILE_TYPE_DEATH_AURA) {
+            for (i32 enemyIndex = 0; enemyIndex < globalVariables.lastEntityIndex; enemyIndex++) {
+                Entity* enemy = &globalVariables.entities[enemyIndex];
+                if (enemy->type != ENTITY_TYPE_ENEMY || !CheckCollisionCircles(projectile->position, projectile->radius, enemy->position, enemy->radius)) continue;
+
+                bool alreadyHit = false;
+                if (type == PROJECTILE_TYPE_CRYSTAL_SHARD || type == PROJECTILE_TYPE_NATURE_SPIKE) {
+                    for (i32 hitIndex = 0; hitIndex < 16; hitIndex++) if (projectile->projectile.hitTracking.hitIds[hitIndex] == enemy->id) { alreadyHit = true; break; }
+                }
+                if (alreadyHit) continue;
+
+                Global_DealDamageToEnemy(enemyIndex, projectile->projectile.damage, type == PROJECTILE_TYPE_NATURE_SPIKE);
+                if (type == PROJECTILE_TYPE_CRYSTAL_SHARD || type == PROJECTILE_TYPE_NATURE_SPIKE) {
+                    for (i32 shiftIndex = 15; shiftIndex > 0; shiftIndex--) projectile->projectile.hitTracking.hitIds[shiftIndex] = projectile->projectile.hitTracking.hitIds[shiftIndex-1];
+                    projectile->projectile.hitTracking.hitIds[0] = enemy->id;
+                }
+                if (type == PROJECTILE_TYPE_FIREBALL) {
+                    Entity explosion = Projectile_Spawn(PROJECTILE_TYPE_EXPLOSION, projectile->position, (Vector2){0}, projectile->projectile.damage * projectile->projectile.explosive.explosionDamageMultiplier, 0.2f, 255);
+                    explosion.radius = projectile->projectile.explosive.explosionRadius; Global_AddEntity(&explosion);
+                    Global_DestroyEntity(projectileIndex--); Audio_PlaySoundVar(ASSET_SOUND_TYPE_EXPLOSION, false);
+                    goto next_projectile;
+                }
+                if (--projectile->projectile.penetration <= 0) { Global_DestroyEntity(projectileIndex--); goto next_projectile; }
+            }
+        } else if (type == PROJECTILE_TYPE_EXPLOSION) {
+            for (i32 enemyIndex = 0; enemyIndex < globalVariables.lastEntityIndex; enemyIndex++) {
+                Entity* enemy = &globalVariables.entities[enemyIndex];
+                if (enemy->type == ENTITY_TYPE_ENEMY && CheckCollisionCircles(projectile->position, projectile->radius, enemy->position, enemy->radius))
+                    Global_DealDamageToEnemy(enemyIndex, projectile->projectile.damage, true);
+            }
+        }
         next_projectile:;
     }
 }
@@ -390,136 +482,254 @@ void Projectile_ProcessAllMovement(f32 deltaTime) {
 
 //~ Begin of Relic Implementation
 void Relic_ApplyEffects() {
-    Entity* player = Global_GetPlayer(); if (!player) return;
-    f32 oldMaxHealth = player->character.maxHealth; PlayerStats* playerStats = &globalVariables.playerStats;
-    playerStats->healthMultiplier = playerStats->damageMultiplier = playerStats->attackSpeedMultiplier = playerStats->movementSpeedMultiplier = playerStats->sizeMultiplier = playerStats->xpMultiplier = 1.0f; playerStats->lifeStealMultiplier = 0.0f;
-    f32* multipliers[] = {NULL, &playerStats->healthMultiplier, &playerStats->damageMultiplier, &playerStats->attackSpeedMultiplier, &playerStats->movementSpeedMultiplier, &playerStats->sizeMultiplier, &playerStats->lifeStealMultiplier, &playerStats->xpMultiplier};
-    for (i32 relicIndex = 0; relicIndex < MAX_RELIC_CAPACITY; relicIndex++) {
-        RelicData* relic = &globalVariables.inventory.relicDatas[relicIndex]; if (relic->level > 0 && relic->relicType < 8) *multipliers[relic->relicType] += (f32)relic->level * relicLevelDefinitions[relic->relicType].multiplier;
-    }
-    player->character.maxHealth = 100.0f * playerStats->healthMultiplier; if (player->character.maxHealth > oldMaxHealth && player->character.invulnerableTimer <= 0) player->character.health += (player->character.maxHealth - oldMaxHealth);
-    player->character.speed = 400.0f * playerStats->movementSpeedMultiplier;
+    Entity* p = Global_GetPlayer(); if (!p) return;
+    f32 oldHP = p->character.maxHealth; PlayerStats* s = &globalVariables.playerStats;
+    s->healthMultiplier = s->damageMultiplier = s->attackSpeedMultiplier = s->movementSpeedMultiplier = s->sizeMultiplier = s->xpMultiplier = 1.0f; s->lifeStealMultiplier = 0.0f;
+    f32* m[] = {NULL, &s->healthMultiplier, &s->damageMultiplier, &s->attackSpeedMultiplier, &s->movementSpeedMultiplier, &s->sizeMultiplier, &s->lifeStealMultiplier, &s->xpMultiplier};
+    for (i32 i = 0; i < MAX_RELIC_CAPACITY; i++) { RelicData* r = &globalVariables.inventory.relicDatas[i]; if (r->level > 0 && r->relicType < 8) *m[r->relicType] += (f32)r->level * relicLevelDefinitions[r->relicType].multiplier; }
+    p->character.maxHealth = 100.0f * s->healthMultiplier;
+    if (p->character.maxHealth > oldHP && p->character.invulnerableTimer <= 0) p->character.health += (p->character.maxHealth - oldHP);
+    p->character.speed = 400.0f * s->movementSpeedMultiplier;
 }
-void Relic_AddRelic(RelicType relicType) {
-    i32 freeSlotIndex = -1;
-    for (i32 relicIndex = 0; relicIndex < MAX_RELIC_CAPACITY; relicIndex++) {
-        RelicData* relic = &globalVariables.inventory.relicDatas[relicIndex];
-        if (relic->level > 0 && relic->relicType == relicType) { if (relic->level < MAX_RELIC_LEVEL) { relic->level++; Relic_ApplyEffects(); } return; }
-        if (relic->level == 0 && freeSlotIndex == -1) freeSlotIndex = relicIndex;
+void Relic_AddRelic(RelicType type) {
+    i32 slot = -1;
+    for (i32 i = 0; i < MAX_RELIC_CAPACITY; i++) {
+        RelicData* r = &globalVariables.inventory.relicDatas[i];
+        if (r->level > 0 && r->relicType == type) { if (r->level < MAX_RELIC_LEVEL) { r->level++; Relic_ApplyEffects(); } return; }
+        if (r->level == 0 && slot == -1) slot = i;
     }
-    if (freeSlotIndex != -1) { globalVariables.inventory.relicDatas[freeSlotIndex] = (RelicData){relicType, 1}; Relic_ApplyEffects(); }
+    if (slot != -1) { globalVariables.inventory.relicDatas[slot] = (RelicData){type, 1}; Relic_ApplyEffects(); }
 }
 //~ End of Relic Implementation
 
 //~ Begin of XP Implementation
-void XP_GenerateXPCrystal(Vector2 position, f32 amount) {
-    Entity crystal = { .type = ENTITY_TYPE_XP_CRYSTAL, .position = position, .scale = {1,1}, .radius = 15, .xpCrystal = {amount, false} }; Global_AddEntity(&crystal);
-}
+void XP_GenerateXPCrystal(Vector2 position, f32 amount) { Entity crystal = { .type = ENTITY_TYPE_XP_CRYSTAL, .position = position, .scale = {1, 1}, .radius = 15, .xpCrystal = {amount, false} }; Global_AddEntity(&crystal); }
 void XP_MoveCrystals(f32 deltaTime) {
     Entity* player = Global_GetPlayer(); if (!player) return;
-    for (i32 crystalIndex = 0; crystalIndex < globalVariables.lastEntityIndex; crystalIndex++) {
-        Entity* crystal = &globalVariables.entities[crystalIndex]; if (crystal->type != ENTITY_TYPE_XP_CRYSTAL) continue;
-        f32 distance = Vector2Distance(crystal->position, player->position);
-        if (!crystal->xpCrystal.bIsMagnetized && distance < 100.0f) crystal->xpCrystal.bIsMagnetized = true;
+    for (i32 index = 0; index < globalVariables.lastEntityIndex; index++) {
+        Entity* crystal = &globalVariables.entities[index]; if (crystal->type != ENTITY_TYPE_XP_CRYSTAL) continue;
+        f32 distance = Vector2Distance(crystal->position, player->position); if (!crystal->xpCrystal.bIsMagnetized && distance < 100.0f) crystal->xpCrystal.bIsMagnetized = true;
         if (crystal->xpCrystal.bIsMagnetized) {
-            f32 currentSpeed = Clamp(Vector2Length(crystal->velocity) + 1200.0f * deltaTime, 200.0f, 700.0f);
-            crystal->velocity = Vector2Scale(Vector2Normalize(Vector2Subtract(player->position, crystal->position)), currentSpeed);
+            f32 speed = Clamp(Vector2Length(crystal->velocity) + 1200.0f * deltaTime, 200.0f, 700.0f);
+            crystal->velocity = Vector2Scale(Vector2Normalize(Vector2Subtract(player->position, crystal->position)), speed);
             crystal->position = Vector2Add(crystal->position, Vector2Scale(crystal->velocity, deltaTime));
         }
-        if (distance < 20.0f) { XP_GrantXP(crystal->xpCrystal.amount); Global_DestroyEntity(crystalIndex--); }
+        if (distance < 20.0f) { XP_GrantXP(crystal->xpCrystal.amount); Global_DestroyEntity(index--); }
     }
 }
-void XP_GrantXP(f32 amount) {
-    globalVariables.playerStats.currentXP += amount * globalVariables.playerStats.xpMultiplier; Audio_PlaySoundVar(ASSET_SOUND_TYPE_XP_GAIN, true);
-    while (globalVariables.playerStats.currentXP >= globalVariables.playerStats.nextLevelXP) XP_LevelUp();
-}
+void XP_GrantXP(f32 amount) { PlayerStats* playerStats = &globalVariables.playerStats; playerStats->currentXP += amount * playerStats->xpMultiplier; Audio_PlaySoundVar(ASSET_SOUND_TYPE_XP_GAIN, true); while (playerStats->currentXP >= playerStats->nextLevelXP) XP_LevelUp(); }
 void XP_LevelUp() {
-    globalVariables.playerStats.currentXP -= globalVariables.playerStats.nextLevelXP; globalVariables.playerStats.level++;
-    globalVariables.playerStats.nextLevelXP = 200.0f * powf(1.07f, (f32)(globalVariables.playerStats.level - 1)); Audio_PlaySoundVar(ASSET_SOUND_TYPE_LEVEL_UP, false);
+    PlayerStats* playerStats = &globalVariables.playerStats; playerStats->currentXP -= playerStats->nextLevelXP; playerStats->level++;
+    playerStats->nextLevelXP = 200.0f * powf(1.07f, (f32)(playerStats->level - 1)); Audio_PlaySoundVar(ASSET_SOUND_TYPE_LEVEL_UP, false);
     if (++globalVariables.levelUpState.pendingCount && !globalVariables.levelUpState.bShowLevelUp) { globalVariables.levelUpState.bShowLevelUp = true; HUD_GenerateLevelUpOptions(); }
 }
 //~ End of XP Implementation
 
 // ~Begin of Render Implementation
 void Render_DrawMap() {
-    Texture2D grassTexture = Assets_GetSprite(ASSET_SPRITE_TYPE_GRASS); SetTextureWrap(grassTexture, TEXTURE_WRAP_REPEAT);
-    DrawTextureRec(grassTexture, (Rectangle){0,0,12000,12000}, (Vector2){-6000,-6000}, WHITE);
-    DrawRectangleLinesEx((Rectangle){-MAP_HALF_SIZE, -MAP_HALF_SIZE, MAP_HALF_SIZE*2, MAP_HALF_SIZE*2}, 10.0f, RED);
+    Texture2D grass = Assets_GetSprite(ASSET_SPRITE_TYPE_GRASS);
+    SetTextureWrap(grass, TEXTURE_WRAP_REPEAT);
+    DrawTextureRec(grass, (Rectangle){0, 0, 12000, 12000}, (Vector2){-6000, -6000}, WHITE);
+    DrawRectangleLinesEx((Rectangle){-MAP_HALF_SIZE, -MAP_HALF_SIZE, MAP_HALF_SIZE * 2, MAP_HALF_SIZE * 2}, 10.0f, RED);
 }
 void Render_DrawProjectile(Entity* projectile) {
     if (!projectile || projectile->type != ENTITY_TYPE_PROJECTILE) return;
-    ProjectileType projectileType = projectile->projectile.projectileType; f32 radius = projectile->radius, scaleValue = projectile->scale.x;
-    if (projectileType == 1) { DrawCircleV(projectile->position, 10 * scaleValue, BLUE); DrawCircleLinesV(projectile->position, 10 * scaleValue, SKYBLUE); }
-    else if (projectileType == 2) { DrawCircleV(projectile->position, 15 * scaleValue, ORANGE); DrawCircleLinesV(projectile->position, 15 * scaleValue, RED); }
-    else if (projectileType == 3) { DrawCircleV(projectile->position, 20 * scaleValue, BLACK); DrawCircleLinesV(projectile->position, 20 * scaleValue, GRAY); }
-    else if (projectileType == 4) { DrawPoly(projectile->position, 3, 30 * scaleValue, 0, LIME); DrawPolyLines(projectile->position, 3, 30 * scaleValue, 0, GREEN); }
-    else if (projectileType == 5) DrawCircleV(projectile->position, radius, ColorAlpha(BLACK, 0.3f));
-    else if (projectileType == 6) DrawCircleV(projectile->position, radius, ColorAlpha(ORANGE, 0.5f));
-    else DrawCircleV(projectile->position, 5, PINK);
+    ProjectileType type = projectile->projectile.projectileType;
+    f32 radius = projectile->radius, scale = projectile->scale.x;
+    if (type == 1) {
+        DrawCircleV(projectile->position, 10 * scale, BLUE);
+        DrawCircleLinesV(projectile->position, 10 * scale, SKYBLUE);
+    } else if (type == 2) {
+        DrawCircleV(projectile->position, 15 * scale, ORANGE);
+        DrawCircleLinesV(projectile->position, 15 * scale, RED);
+    } else if (type == 3) {
+        DrawCircleV(projectile->position, 20 * scale, BLACK);
+        DrawCircleLinesV(projectile->position, 20 * scale, GRAY);
+    } else if (type == 4) {
+        DrawPoly(projectile->position, 3, 30 * scale, 0, LIME);
+        DrawPolyLines(projectile->position, 3, 30 * scale, 0, GREEN);
+    } else if (type == 5) {
+        DrawCircleV(projectile->position, radius, ColorAlpha(BLACK, 0.3f));
+    } else if (type == 6) {
+        DrawCircleV(projectile->position, radius, ColorAlpha(ORANGE, 0.5f));
+    } else {
+        DrawCircleV(projectile->position, 5, PINK);
+    }
 }
 void Render_DrawEntity(Entity* entity) {
     if (!entity) return;
-    if (entity->type == ENTITY_TYPE_XP_CRYSTAL) { DrawPoly(entity->position, 4, 8 * entity->scale.x, 0, BLUE); DrawPolyLinesEx(entity->position, 4, 8 * entity->scale.x, 0, 2, SKYBLUE); return; }
-    if (entity->type == ENTITY_TYPE_DROP) { Color baseColor = GREEN, outlineColor = LIME; if (entity->drop.dropType == DROP_TYPE_POWERUP) { PowerUpType powerUpType = entity->drop.powerUpType; baseColor = (powerUpType == 1 ? YELLOW : (powerUpType == 2 ? RED : (powerUpType == 4 ? DARKBLUE : WHITE))); outlineColor = (powerUpType == 1 ? GOLD : (powerUpType == 2 ? MAROON : (powerUpType == 4 ? BLUE : LIGHTGRAY))); } DrawPoly(entity->position, 4, 12 * entity->scale.x, 0, baseColor); DrawPolyLinesEx(entity->position, 4, 12 * entity->scale.x, 0, 2, outlineColor); return; }
+    if (entity->type == ENTITY_TYPE_XP_CRYSTAL) {
+        DrawPoly(entity->position, 4, 8 * entity->scale.x, 0, BLUE);
+        DrawPolyLinesEx(entity->position, 4, 8 * entity->scale.x, 0, 2, SKYBLUE);
+        return;
+    }
+    if (entity->type == ENTITY_TYPE_DROP) {
+        Color baseColor = GREEN, outlineColor = LIME;
+        if (entity->drop.dropType == DROP_TYPE_POWERUP) {
+            PowerUpType powerUpType = entity->drop.powerUpType;
+            baseColor = (powerUpType == 1 ? YELLOW : (powerUpType == 2 ? RED : (powerUpType == 4 ? DARKBLUE : WHITE)));
+            outlineColor = (powerUpType == 1 ? GOLD : (powerUpType == 2 ? MAROON : (powerUpType == 4 ? BLUE : LIGHTGRAY)));
+        }
+        DrawPoly(entity->position, 4, 12 * entity->scale.x, 0, baseColor);
+        DrawPolyLinesEx(entity->position, 4, 12 * entity->scale.x, 0, 2, outlineColor);
+        return;
+    }
     if (entity->visualType == VISUAL_TYPE_UNDEFINED) return;
-    Texture2D texture = Assets_GetSprite(entity->visualType == VISUAL_TYPE_ANIMATED_SPRITE ? entity->animatedSprite.spriteID : (entity->visualType == VISUAL_TYPE_ANIMATED_STATIC_SPRITE ? entity->animatedStaticSprite.spriteID : entity->sprite.spriteID));
-    Color tintColor = WHITE; if (entity->type == ENTITY_TYPE_ENEMY) { EnemyType enemyType = entity->enemyCharacter.enemyType; tintColor = (enemyType == 1 ? WHITE : (enemyType == 2 ? ORANGE : (enemyType == 3 ? PURPLE : RED))); }
-    Rectangle sourceRect = {0, 0, (f32)texture.width, (f32)texture.height}; Vector2 origin = {texture.width * entity->scale.x / 2.0f, texture.height * entity->scale.y};
-    if (entity->visualType == VISUAL_TYPE_ANIMATED_SPRITE) { f32 frameWidth = (f32)texture.width / (entity->animatedSprite.frameCount + 1); sourceRect = (Rectangle){entity->animatedSprite.currentFrame * frameWidth, 0, entity->animatedSprite.flipX ? -frameWidth : frameWidth, (f32)texture.height}; origin.x = (frameWidth * entity->scale.x) / 2.0f; }
-    else { if (entity->visualType == VISUAL_TYPE_ANIMATED_STATIC_SPRITE && entity->animatedStaticSprite.flipX) sourceRect.width = -sourceRect.width; else if (entity->visualType == VISUAL_TYPE_SPRITE && entity->sprite.flipX) sourceRect.width = -sourceRect.width; }
+    u8 spriteID = (entity->visualType == VISUAL_TYPE_ANIMATED_SPRITE ? entity->animatedSprite.spriteID : (entity->visualType == VISUAL_TYPE_ANIMATED_STATIC_SPRITE ? entity->animatedStaticSprite.spriteID : entity->sprite.spriteID));
+    Texture2D texture = Assets_GetSprite(spriteID);
+    Color tint = WHITE;
+    if (entity->type == ENTITY_TYPE_ENEMY) {
+        EnemyType enemyType = entity->enemyCharacter.enemyType;
+        tint = (enemyType == 1 ? WHITE : (enemyType == 2 ? ORANGE : (enemyType == 3 ? PURPLE : RED)));
+    }
+    Rectangle source = {0, 0, (f32)texture.width, (f32)texture.height};
+    Vector2 origin = {texture.width * entity->scale.x / 2.0f, texture.height * entity->scale.y};
+    if (entity->visualType == VISUAL_TYPE_ANIMATED_SPRITE) {
+        f32 frameWidth = (f32)texture.width / (entity->animatedSprite.frameCount + 1);
+        source = (Rectangle){entity->animatedSprite.currentFrame * frameWidth, 0, entity->animatedSprite.flipX ? -frameWidth : frameWidth, (f32)texture.height};
+        origin.x = (frameWidth * entity->scale.x) / 2.0f;
+    } else if ((entity->visualType == VISUAL_TYPE_ANIMATED_STATIC_SPRITE ? entity->animatedStaticSprite.flipX : entity->sprite.flipX)) {
+        source.width = -source.width;
+    }
     f32 bobOffset = (entity->visualType == VISUAL_TYPE_ANIMATED_STATIC_SPRITE ? sinf(entity->animatedStaticSprite.animationTimer / entity->animatedStaticSprite.animationDuration * 2 * PI) * 10 : 0);
-    Rectangle destRect = {entity->position.x, entity->position.y + bobOffset, (sourceRect.width < 0 ? -sourceRect.width : sourceRect.width) * entity->scale.x, texture.height * entity->scale.y};
+    Rectangle destination = {entity->position.x, entity->position.y + bobOffset, (source.width < 0 ? -source.width : source.width) * entity->scale.x, texture.height * entity->scale.y};
     f32 flashIntensity = (entity->type == ENTITY_TYPE_ENEMY && entity->enemyCharacter.flashTimer > 0) ? 1.0f : ((entity->type == ENTITY_TYPE_PLAYER && entity->character.flashTimer > 0 && ((i32)(entity->character.flashTimer * 10) % 2) == 0) ? 1.0f : 0);
-    if (entity == Global_GetPlayer() && entity->type == ENTITY_TYPE_UNDEFINED) { if (entity->character.deathFadeTimer <= 0) return; tintColor = ColorAlpha(tintColor, entity->character.deathFadeTimer / 2.0f); }
-    if (flashIntensity > 0) { BeginShaderMode(globalVariables.assets.flashShader); SetShaderValue(globalVariables.assets.flashShader, globalVariables.assets.flashIntensityLoc, &flashIntensity, SHADER_UNIFORM_FLOAT); }
-    DrawTexturePro(texture, sourceRect, destRect, origin, 0, tintColor); if (flashIntensity > 0) EndShaderMode();
+    if (entity == Global_GetPlayer() && entity->type == ENTITY_TYPE_UNDEFINED) {
+        if (entity->character.deathFadeTimer <= 0) return;
+        tint = ColorAlpha(tint, entity->character.deathFadeTimer / 2.0f);
+    }
+    if (flashIntensity > 0) {
+        BeginShaderMode(globalVariables.assets.flashShader);
+        SetShaderValue(globalVariables.assets.flashShader, globalVariables.assets.flashIntensityLoc, &flashIntensity, SHADER_UNIFORM_FLOAT);
+    }
+    DrawTexturePro(texture, source, destination, origin, 0, tint);
+    if (flashIntensity > 0) EndShaderMode();
 }
 void Render_DrawAllEntitiesSorted() {
-    static i32 bucketCounts[500], bucketOffsets[500], currentOffsets[500]; static u16 sortedIndices[MAX_ENTITIES_AMOUNT]; memset(bucketCounts, 0, sizeof(bucketCounts));
-    for (i32 entityIndex = 0; entityIndex < globalVariables.lastEntityIndex; entityIndex++) { if (globalVariables.entities[entityIndex].type == ENTITY_TYPE_DAMAGE_POPUP) continue; i32 bucketIndex = (i32)((globalVariables.entities[entityIndex].position.y + 5000) / (10000.0f / 500)); bucketCounts[(i32)Clamp(bucketIndex, 0, 499)]++; }
-    bucketOffsets[0] = 0; for (int bucketIndex = 1; bucketIndex < 500; bucketIndex++) bucketOffsets[bucketIndex] = bucketOffsets[bucketIndex - 1] + bucketCounts[bucketIndex - 1]; memcpy(currentOffsets, bucketOffsets, sizeof(currentOffsets));
-    for (i32 entityIndex = 0; entityIndex < globalVariables.lastEntityIndex; entityIndex++) { if (globalVariables.entities[entityIndex].type == ENTITY_TYPE_DAMAGE_POPUP) continue; i32 bucketIndex = (i32)((globalVariables.entities[entityIndex].position.y + 5000) / (10000.0f / 500)); sortedIndices[currentOffsets[(i32)Clamp(bucketIndex, 0, 499)]++] = entityIndex; }
+    static i32 bucketCounts[500], bucketOffsets[500], currentOffsets[500];
+    static u16 sortedIndices[MAX_ENTITIES_AMOUNT];
+    memset(bucketCounts, 0, sizeof(bucketCounts));
+    for (i32 index = 0; index < globalVariables.lastEntityIndex; index++) {
+        if (globalVariables.entities[index].type == ENTITY_TYPE_DAMAGE_POPUP) continue;
+        i32 bucketIndex = (i32)((globalVariables.entities[index].position.y + 5000) / 20.0f);
+        bucketCounts[(i32)Clamp(bucketIndex, 0, 499)]++;
+    }
+    bucketOffsets[0] = 0;
+    for (int index = 1; index < 500; index++) bucketOffsets[index] = bucketOffsets[index - 1] + bucketCounts[index - 1];
+    memcpy(currentOffsets, bucketOffsets, sizeof(currentOffsets));
+    for (i32 index = 0; index < globalVariables.lastEntityIndex; index++) {
+        if (globalVariables.entities[index].type == ENTITY_TYPE_DAMAGE_POPUP) continue;
+        i32 bucketIndex = (i32)((globalVariables.entities[index].position.y + 5000) / 20.0f);
+        sortedIndices[currentOffsets[(i32)Clamp(bucketIndex, 0, 499)]++] = index;
+    }
     if (globalVariables.deathAuraIndex < globalVariables.lastEntityIndex) Render_DrawProjectile(&globalVariables.entities[globalVariables.deathAuraIndex]);
-    i32 totalActive = 0; for (int bucketIndex = 0; bucketIndex < 500; bucketIndex++) totalActive += bucketCounts[bucketIndex];
-    for (i32 sortedIndex = 0; sortedIndex < totalActive; sortedIndex++) { Entity* entity = &globalVariables.entities[sortedIndices[sortedIndex]]; if (entity->type == ENTITY_TYPE_PROJECTILE) { if (entity->projectile.projectileType != 5) Render_DrawProjectile(entity); } else Render_DrawEntity(entity); }
-    for (i32 entityIndex = 0; entityIndex < globalVariables.lastEntityIndex; entityIndex++) {
-        Entity* entity = &globalVariables.entities[entityIndex]; if (entity->type != ENTITY_TYPE_DAMAGE_POPUP) continue;
-        char popupText[16]; sprintf(popupText, "%.0f", entity->damagePopup.amount); f32 fontSize = 20 * entity->scale.x, alphaValue = entity->damagePopup.timer > 0.2f ? 1.0f - sinf((entity->damagePopup.timer - 0.2f) / 0.5f * PI * 0.5f) : 1.0f;
-        Vector2 textSize = MeasureTextEx(GetFontDefault(), popupText, fontSize, 1), drawPos = {entity->position.x - textSize.x / 2, entity->position.y - textSize.y / 2};
-        for (int outlineX = -1; outlineX <= 1; outlineX += 2) for (int outlineY = -1; outlineY <= 1; outlineY += 2) DrawTextEx(GetFontDefault(), popupText, (Vector2){drawPos.x + outlineX, drawPos.y + outlineY}, fontSize, 1, ColorAlpha(BLACK, alphaValue));
-        DrawTextEx(GetFontDefault(), popupText, drawPos, fontSize, 1, ColorAlpha(YELLOW, alphaValue));
+    i32 totalCount = 0;
+    for (int index = 0; index < 500; index++) totalCount += bucketCounts[index];
+    for (i32 index = 0; index < totalCount; index++) {
+        Entity* entity = &globalVariables.entities[sortedIndices[index]];
+        if (entity->type == ENTITY_TYPE_PROJECTILE) {
+            if (entity->projectile.projectileType != 5) Render_DrawProjectile(entity);
+        } else {
+            Render_DrawEntity(entity);
+        }
+    }
+    for (i32 index = 0; index < globalVariables.lastEntityIndex; index++) {
+        Entity* entity = &globalVariables.entities[index];
+        if (entity->type != ENTITY_TYPE_DAMAGE_POPUP) continue;
+        char text[16];
+        sprintf(text, "%.0f", entity->damagePopup.amount);
+        f32 fontSize = 20 * entity->scale.x, alpha = entity->damagePopup.timer > 0.2f ? 1.0f - sinf((entity->damagePopup.timer - 0.2f) / 0.5f * PI * 0.5f) : 1.0f;
+        Vector2 textSize = MeasureTextEx(GetFontDefault(), text, fontSize, 1), textPosition = {entity->position.x - textSize.x / 2, entity->position.y - textSize.y / 2};
+        for (int offsetX = -1; offsetX <= 1; offsetX += 2) {
+            for (int offsetY = -1; offsetY <= 1; offsetY += 2) {
+                DrawTextEx(GetFontDefault(), text, (Vector2){textPosition.x + offsetX, textPosition.y + offsetY}, fontSize, 1, ColorAlpha(BLACK, alpha));
+            }
+        }
+        DrawTextEx(GetFontDefault(), text, textPosition, fontSize, 1, ColorAlpha(YELLOW, alpha));
     }
 }
 // ~End of Render Implementation
 
 // ~Begin of Spawner Implementation
 SpawnerData Spawner_GenerateSpawnerData() {
-    SpawnerData spawnerData = { .delayBetweenSpawns = 1.5f, .spawnTimer = 1.5f };
-    SpawnDefinition spawnDefinitions[] = {
-        {1,1,{1,1},{800,1000},100,0}, {2,2,{5,8},{900,1100},30,0}, {1,4,{10,15},{1000,1200},20,0}, {3,1,{1,1},{1100,1300},10,15}, {2,3,{5,10},{900,1100},25,0},
-        {1,2,{11,18},{900,1100},35,0}, {1,3,{12,19},{900,1100},35,0}, {2,2,{15,25},{800,1000},40,5}, {2,4,{20,30},{1000,1200},30,10}, {3,2,{2,3},{1100,1300},15,25},
-        {2,4,{30,45},{700,900},25,20}, {1,3,{40,60},{1000,1200},20,35}, {3,2,{5,8},{1200,1400},10,45}, {2,2,{50,80},{900,1100},30,60}
+    SpawnerData data = { .delayBetweenSpawns = 1.5f, .spawnTimer = 1.5f };
+    SpawnDefinition defs[] = {
+        {1, 1, { 1,  1}, { 800, 1000}, 100,  0}, {2, 2, { 5,  8}, { 900, 1100},  30,  0}, {1, 4, {10, 15}, {1000, 1200},  20,  0},
+        {3, 1, { 1,  1}, {1100, 1300},  10, 15}, {2, 3, { 5, 10}, { 900, 1100},  25,  0}, {1, 2, {11, 18}, { 900, 1100},  35,  0},
+        {1, 3, {12, 19}, { 900, 1100},  35,  0}, {2, 2, {15, 25}, { 800, 1000},  40,  5}, {2, 4, {20, 30}, {1000, 1200},  30, 10},
+        {3, 2, { 2,  3}, {1100, 1300},  15, 25}, {2, 4, {30, 45}, { 700,  900},  25, 20}, {1, 3, {40, 60}, {1000, 1200},  20, 35},
+        {3, 2, { 5,  8}, {1200, 1400},  10, 45}, {2, 2, {50, 80}, { 900, 1100},  30, 60}
     };
-    for (int definitionIndex = 0; definitionIndex < 14; definitionIndex++) spawnerData.spawnsDefinitions[definitionIndex] = spawnDefinitions[definitionIndex]; return spawnerData;
+
+    for (int i = 0; i < MAX_SPAWN_DEFINITION; i++) {
+        data.spawnsDefinitions[i] = defs[i];
+    }
+    return data;
 }
+
 void Spawner_ProcessSpawnLogic(f32 deltaTime) {
-    Entity* player = Global_GetPlayer(); if (player->type == ENTITY_TYPE_UNDEFINED || (globalVariables.spawnerData.spawnTimer -= deltaTime) > 0) return;
-    SpawnerData* spawnerData = &globalVariables.spawnerData; spawnerData->currentDifficulty = (globalVariables.gameTimer / 60.0f) * 10.0f;
-    f32 spawnMultiplier = (globalVariables.eventState.activeEventType == EVENT_TYPE_SWARM ? 3.0f : (globalVariables.eventState.activeEventType == EVENT_TYPE_BOSS ? 1.5f : 1.0f));
-    spawnerData->spawnTimer = (spawnerData->delayBetweenSpawns / powf(1.15f, floorf(globalVariables.gameTimer / 60.0f))) / spawnMultiplier;
-    i32 totalWeight = 0; for (int definitionIndex = 0; definitionIndex < 14; definitionIndex++) if (spawnerData->currentDifficulty >= spawnerData->spawnsDefinitions[definitionIndex].Difficulty) totalWeight += spawnerData->spawnsDefinitions[definitionIndex].chanceToSpawn;
+    Entity* player = Global_GetPlayer();
+    if (player->type == ENTITY_TYPE_UNDEFINED) return;
+    if ((globalVariables.spawnerData.spawnTimer -= deltaTime) > 0) return;
+
+    SpawnerData* data = &globalVariables.spawnerData;
+    data->currentDifficulty = (globalVariables.gameTimer / 60.0f) * 10.0f;
+
+    f32 multiplier = (globalVariables.eventState.activeEventType == EVENT_TYPE_SWARM ? 3.0f : 
+                     (globalVariables.eventState.activeEventType == EVENT_TYPE_BOSS  ? 1.5f : 1.0f));
+    
+    data->spawnTimer = (data->delayBetweenSpawns / powf(1.15f, floorf(globalVariables.gameTimer / 60.0f))) / multiplier;
+
+    i32 totalWeight = 0;
+    for (int i = 0; i < MAX_SPAWN_DEFINITION; i++) {
+        if (data->currentDifficulty >= data->spawnsDefinitions[i].Difficulty) {
+            totalWeight += data->spawnsDefinitions[i].chanceToSpawn;
+        }
+    }
+
     if (totalWeight <= 0) return;
-    i32 randomWeight = GetRandomValue(0, totalWeight - 1), cumulativeWeight = 0; SpawnDefinition* definition = NULL;
-    for (int definitionIndex = 0; definitionIndex < 14; definitionIndex++) if (spawnerData->currentDifficulty >= spawnerData->spawnsDefinitions[definitionIndex].Difficulty && (cumulativeWeight += spawnerData->spawnsDefinitions[definitionIndex].chanceToSpawn) > randomWeight) { definition = &spawnerData->spawnsDefinitions[definitionIndex]; break; }
-    if (!definition) return;
-    u16 amountToSpawn = Helper_GetRandomu16InRange(definition->amountToSpawnRange); f32 distanceToSpawn = Helper_GetRandomf32InRange(definition->distanceToSpawnRange), angle = (f32)GetRandomValue(0, 360) * (PI/180.0f);
-    Vector2 spawnPosition = {player->position.x + cosf(angle) * distanceToSpawn, player->position.y + sinf(angle) * distanceToSpawn};
-    for (i32 spawnIndex = 0; spawnIndex < amountToSpawn; spawnIndex++) {
-        Entity enemy = Enemy_GenerateEnemy(definition->enemyType);
-        if (definition->spawnType == SPAWN_TYPE_SINGLE) { enemy.position = spawnPosition; Global_AddEntity(&enemy); break; }
-        else if (definition->spawnType == SPAWN_TYPE_CLUSTER) enemy.position = (Vector2){spawnPosition.x + GetRandomValue(-100, 100), spawnPosition.y + GetRandomValue(-100, 100)};
-        else if (definition->spawnType == SPAWN_TYPE_LINE) { Vector2 toSpawn = Vector2Subtract(spawnPosition, player->position), lineDirection = Vector2Normalize((Vector2){-toSpawn.y, toSpawn.x}); enemy.position = Vector2Add(spawnPosition, Vector2Scale(lineDirection, (spawnIndex - (amountToSpawn / 2.0f)) * 70.0f)); }
-        else if (definition->spawnType == SPAWN_TYPE_AROUND) { f32 aroundAngle = (f32)spawnIndex * (2.0f * PI / (f32)amountToSpawn); enemy.position = (Vector2){player->position.x + cosf(aroundAngle) * distanceToSpawn, player->position.y + sinf(aroundAngle) * distanceToSpawn}; }
+
+    i32 randomWeight = GetRandomValue(0, totalWeight - 1), cumulativeWeight = 0;
+    SpawnDefinition* def = NULL;
+
+    for (int i = 0; i < MAX_SPAWN_DEFINITION; i++) {
+        if (data->currentDifficulty < data->spawnsDefinitions[i].Difficulty) continue;
+        if ((cumulativeWeight += data->spawnsDefinitions[i].chanceToSpawn) > randomWeight) {
+            def = &data->spawnsDefinitions[i];
+            break;
+        }
+    }
+
+    if (!def) return;
+
+    u16 amount = Helper_GetRandomu16InRange(def->amountToSpawnRange);
+    f32 dist = Helper_GetRandomf32InRange(def->distanceToSpawnRange);
+    f32 angle = (f32)GetRandomValue(0, 360) * (PI/180.0f);
+
+    Vector2 basePos = {
+        player->position.x + cosf(angle) * dist, 
+        player->position.y + sinf(angle) * dist
+    };
+
+    for (i32 i = 0; i < amount; i++) {
+        Entity enemy = Enemy_GenerateEnemy(def->enemyType);
+        
+        if (def->spawnType == SPAWN_TYPE_SINGLE) {
+            enemy.position = basePos;
+            Global_AddEntity(&enemy);
+            break;
+        }
+
+        if (def->spawnType == SPAWN_TYPE_CLUSTER) {
+            enemy.position = (Vector2){basePos.x + GetRandomValue(-100, 100), basePos.y + GetRandomValue(-100, 100)};
+        } else if (def->spawnType == SPAWN_TYPE_LINE) {
+            Vector2 toSpawn = Vector2Subtract(basePos, player->position);
+            Vector2 lineDir = Vector2Normalize((Vector2){-toSpawn.y, toSpawn.x});
+            enemy.position = Vector2Add(basePos, Vector2Scale(lineDir, (i - (amount / 2.0f)) * 70.0f));
+        } else if (def->spawnType == SPAWN_TYPE_AROUND) {
+            f32 a = (f32)i * (2.0f * PI / (f32)amount);
+            enemy.position = (Vector2){player->position.x + cosf(a) * dist, player->position.y + sinf(a) * dist};
+        }
         Global_AddEntity(&enemy);
     }
 }
