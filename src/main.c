@@ -916,6 +916,5 @@ void Global_UpdateGameTimer(f32 deltaTime)
     if (player && player->type == ENTITY_TYPE_UNDEFINED) return;
 
     globalVariables.gameTimer += deltaTime;
-    HUD_UpdateData();
 }
 // ~End of Global Implementation
