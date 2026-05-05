@@ -149,7 +149,7 @@ void Assets_Init() {
         if (globalVariables.assets.sprites[i + 1].id == 0) TraceLog(LOG_WARNING, "ASSETS: Failed to load sprite %s", sprites[i]);
     }
     TraceLog(LOG_INFO, "ASSETS: Loading sounds and music...");
-    const char* sounds[] = {"assets/sounds/PlayerDamageAudio.ogg", "assets/sounds/LevelUpAudio.ogg", "assets/sounds/XpGainAudio.ogg", "assets/sounds/DamageAudio.mp3", "assets/sounds/ExplosionAudio.ogg"};
+    const char* sounds[] = {"assets/sounds/DamageAudio.mp3", "assets/sounds/ExplosionAudio.ogg", "assets/sounds/LevelUpAudio.ogg", "assets/sounds/XpGainAudio.ogg", "assets/sounds/PlayerDamageAudio.ogg"};
     for (i32 i=0; i<5; i++) globalVariables.assets.sounds[i + 1] = LoadSound(sounds[i]);
     globalVariables.assets.musics[ASSET_MUSIC_TYPE_COMBAT] = LoadMusicStream("assets/music/CombatMusic.ogg");
     TraceLog(LOG_INFO, "ASSETS: Loading shaders...");
