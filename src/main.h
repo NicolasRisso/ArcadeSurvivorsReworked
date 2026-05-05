@@ -250,7 +250,6 @@ void Event_TriggerEvent(GameEventType type);
 
 //~ Begin of HUD Implementation
 void HUD_Init();
-void HUD_UpdateData();
 void HUD_Draw();
 void HUD_DrawInventory();
 void HUD_DrawLevelUp();
