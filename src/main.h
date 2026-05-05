@@ -167,37 +167,201 @@ typedef enum GameEventType : u8 {
 // ~End of Enums
 
 // ~Begin of Structs
-typedef struct Drop { f32 radius; DropType dropType; union{ PowerUpType powerUpType; InstantDropType instantDropType; }; } Drop;
-typedef struct DropsDefinition{ f32 chanceToPowerUp; f32 chanceToInstant;} DropsDefinition;
-typedef struct SpriteData { u8 spriteID; f32 flipX; } SpriteData;
-typedef struct AnimatedSpriteData { u8 spriteID; u8 frameCount; u8 currentFrame; f32 frameTimer; f32 frameTime; bool flipX; } AnimatedSpriteData;
-typedef struct AnimatedStaticSpriteData { u8 spriteID; f32 animationDuration; f32 animationTimer; bool flipX; } AnimatedStaticSpriteData;
-typedef struct Character{ f32 health; f32 maxHealth; f32 speed; f32 flashTimer; f32 invulnerableTimer; f32 deathFadeTimer;} Character;
-typedef struct EnemyCharacter{ f32 health; f32 speed; f32 damage; EnemyType enemyType; f32 xpDropAmount; f32 flashTimer; } EnemyCharacter;
-typedef struct Projectile{ ProjectileType projectileType; f32 damage; f32 lifeTime; u8 penetration; u16 ownerID; f32 timer; union { struct { u16 hitIds[16];} hitTracking; struct { f32 explosionRadius; f32 explosionDamageMultiplier; } explosive; }; } Projectile;
-typedef struct DamagePopup { f32 amount; f32 timer; } DamagePopup;
-typedef struct XPCrystal { f32 amount; bool bIsMagnetized; } XPCrystal;
-typedef struct Entity{ EntityType type; u16 id; u8 spriteID; Vector2 position; Vector2 velocity; Vector2 scale; f32 radius; union { Character character; EnemyCharacter enemyCharacter; Projectile projectile; DamagePopup damagePopup; XPCrystal xpCrystal; Drop drop; }; VisualType visualType; union { SpriteData sprite; AnimatedSpriteData animatedSprite; AnimatedStaticSpriteData animatedStaticSprite; }; } Entity;
-typedef struct Assets{ Texture2D sprites[ASSET_SPRITE_TYPE_COUNT]; Sound sounds[ASSET_SOUND_TYPE_COUNT]; Music musics[ASSET_MUSIC_TYPE_COUNT]; Shader flashShader; i32 flashIntensityLoc;} Assets;
-typedef struct SpawnDefinition{ EnemyType enemyType; SpawnType spawnType; u16Range amountToSpawnRange; f32Range distanceToSpawnRange; u16 chanceToSpawn; f32 Difficulty; } SpawnDefinition;
-typedef struct SpawnerData{ f32 delayBetweenSpawns; f32 spawnTimer; f32 currentDifficulty; SpawnDefinition spawnsDefinitions[MAX_SPAWN_DEFINITION]; } SpawnerData;
-typedef struct WeaponCrystalDefinition { u8 penetration;} WeaponCrystalDefinition;
-typedef struct WeaponFireballDefinition { f32 explosionRadius; f32 explosionDamageMultipler; } WeaponFireballDefinition;
-typedef struct WeaponBombShoesDefinition { f32 explosionRadius; f32 delayToExplode; } WeaponBombShoesDefinition;
-typedef struct WeaponNatureSpikesDefinition { f32 rangeToSpawn; f32 spikeDuration; f32 spikeMaxDamage; } WeaponNatureSpikesDefinition;
-typedef struct WeaponDeathAuraDefinition { f32 size; } WeaponDeathAuraDefinition;
-typedef struct WeaponDefinition { f32 damage; f32 delayBetweenAttacks; u8 projectileAmount; union { WeaponCrystalDefinition crystal; WeaponFireballDefinition fireball; WeaponBombShoesDefinition bombShoes; WeaponNatureSpikesDefinition natureSpikes; WeaponDeathAuraDefinition deathAura; }; } WeaponDefinition;
-typedef struct WeaponData { WeaponType weaponType; u8 level; f32 attackTimer; u8 burstRemaining; f32 burstTimer; } WeaponData;
-typedef struct RelicDefinition { f32 multiplier; } RelicDefinition;
-typedef struct RelicData { u8 level; RelicType relicType; RelicDefinition RelicDefinition; } RelicData;
-typedef struct Inventory { WeaponData weaponDatas[MAX_WEAPON_CAPACITY]; RelicData relicDatas[MAX_RELIC_CAPACITY]; } Inventory;
-typedef struct InventoryDefinitions { WeaponDefinition weaponDefinitions[WEAPON_TYPE_COUNT][MAX_WEAPON_LEVEL]; } InventoryDefinitions;
-typedef struct UpgradeOption { UpgradeType type; union { WeaponType weapon; RelicType relic; }; u8 level; } UpgradeOption;
-typedef struct LevelUpState { bool bShowLevelUp; UpgradeOption options[3]; u8 pendingCount; u8 selectedIndex; } LevelUpState;
-typedef struct PlayerStats{ f32 currentXP; f32 nextLevelXP; u16 level; f32 healthMultiplier; f32 damageMultiplier; f32 attackSpeedMultiplier; f32 movementSpeedMultiplier; f32 sizeMultiplier; f32 lifeStealMultiplier; f32 xpMultiplier; } PlayerStats;
-typedef struct GameEventState { GameEventType activeEventType; f32 activeEventTimer; f32 swarmCycleTimer; f32 bossCycleTimer; } GameEventState;
-typedef struct ActivePowerUp { PowerUpType type; f32 remainingTime; bool bIsActive; } ActivePowerUp;
-typedef struct GlobalVariables{ Assets assets; Camera2D camera; PlayerStats playerStats; Entity entities[MAX_ENTITIES_AMOUNT]; u16 lastEntityIndex; u16 playerIndex; DropsDefinition dropsDefinition; Inventory inventory; InventoryDefinitions InventoryDefinitions; SpawnerData spawnerData; f32 gameTimer; u16 deathAuraIndex; u16 nextEntityId; bool bShowInventory; LevelUpState levelUpState; GameEventState eventState; ActivePowerUp activePowerUps[MAX_ACTIVE_POWERUPS]; char hudEventMessage[64]; f32 hudEventTimer; } GlobalVariables;
+typedef struct Drop {
+    f32 radius;
+    DropType dropType;
+    union{ PowerUpType powerUpType; InstantDropType instantDropType; };
+} Drop;
+typedef struct DropsDefinition{
+    f32 chanceToPowerUp;
+    f32 chanceToInstant;
+} DropsDefinition;
+typedef struct SpriteData {
+    u8 spriteID; 
+    f32 flipX; 
+} SpriteData;
+typedef struct AnimatedSpriteData { 
+    u8 spriteID; 
+    u8 frameCount; 
+    u8 currentFrame; 
+    f32 frameTimer; 
+    f32 frameTime; 
+    bool flipX; 
+} AnimatedSpriteData;
+typedef struct AnimatedStaticSpriteData { 
+    u8 spriteID; 
+    f32 animationDuration; 
+    f32 animationTimer; 
+    bool flipX; 
+} AnimatedStaticSpriteData;
+typedef struct Character{ 
+    f32 health; 
+    f32 maxHealth; 
+    f32 speed; 
+    f32 flashTimer; 
+    f32 invulnerableTimer; 
+    f32 deathFadeTimer;
+} Character;
+typedef struct EnemyCharacter{ 
+    f32 health; 
+    f32 speed; 
+    f32 damage; 
+    EnemyType enemyType; 
+    f32 xpDropAmount; 
+    f32 flashTimer; 
+} EnemyCharacter;    
+typedef struct Projectile{ 
+    ProjectileType projectileType; 
+    f32 damage; 
+    f32 lifeTime; 
+    u8 penetration; 
+    u16 ownerID; 
+    f32 timer;
+    union { struct { u16 hitIds[16];} hitTracking; struct { f32 explosionRadius; f32 explosionDamageMultiplier; } explosive; };
+} Projectile;
+typedef struct DamagePopup {
+    f32 amount;
+    f32 timer;
+} DamagePopup;
+typedef struct XPCrystal {
+    f32 amount;
+    bool bIsMagnetized;
+} XPCrystal;
+typedef struct Entity{ 
+    EntityType type; 
+    u16 id;
+    u8 spriteID;
+    Vector2 position;
+    Vector2 velocity;
+    Vector2 scale;
+    f32 radius;
+    union { Character character; EnemyCharacter enemyCharacter; Projectile projectile; DamagePopup damagePopup; XPCrystal xpCrystal; Drop drop; };
+    VisualType visualType;
+    union { SpriteData sprite; AnimatedSpriteData animatedSprite; AnimatedStaticSpriteData animatedStaticSprite; };
+} Entity;
+typedef struct Assets{
+    Texture2D sprites[ASSET_SPRITE_TYPE_COUNT];
+    Sound sounds[ASSET_SOUND_TYPE_COUNT];
+    Music musics[ASSET_MUSIC_TYPE_COUNT];
+    Shader flashShader;
+    i32 flashIntensityLoc;
+} Assets;
+typedef struct SpawnDefinition{
+    EnemyType enemyType;
+    SpawnType spawnType;
+    u16Range amountToSpawnRange;
+    f32Range distanceToSpawnRange;
+    u16 chanceToSpawn;
+    f32 Difficulty;
+} SpawnDefinition;
+typedef struct SpawnerData{
+    f32 delayBetweenSpawns;
+    f32 spawnTimer;
+    f32 currentDifficulty;
+    SpawnDefinition spawnsDefinitions[MAX_SPAWN_DEFINITION];
+} SpawnerData;
+typedef struct WeaponCrystalDefinition {
+    u8 penetration;
+} WeaponCrystalDefinition;
+typedef struct WeaponFireballDefinition {
+    f32 explosionRadius;
+    f32 explosionDamageMultipler;
+} WeaponFireballDefinition;
+typedef struct WeaponBombShoesDefinition {
+    f32 explosionRadius;
+    f32 delayToExplode;
+} WeaponBombShoesDefinition;
+typedef struct WeaponNatureSpikesDefinition {
+    f32 rangeToSpawn;
+    f32 spikeDuration;
+    f32 spikeMaxDamage;
+} WeaponNatureSpikesDefinition;
+typedef struct WeaponDeathAuraDefinition {
+    f32 size;
+} WeaponDeathAuraDefinition;
+typedef struct WeaponDefinition {
+    f32 damage;
+    f32 delayBetweenAttacks; 
+    u8 projectileAmount; 
+    union { WeaponCrystalDefinition crystal; WeaponFireballDefinition fireball; WeaponBombShoesDefinition bombShoes; WeaponNatureSpikesDefinition natureSpikes; WeaponDeathAuraDefinition deathAura; };
+} WeaponDefinition;
+typedef struct WeaponData {
+    WeaponType weaponType;
+    u8 level;
+    f32 attackTimer;
+    u8 burstRemaining;
+    f32 burstTimer;
+} WeaponData;
+typedef struct RelicDefinition {
+    f32 multiplier;
+} RelicDefinition;
+typedef struct RelicData {
+    u8 level;
+    RelicType relicType;
+    RelicDefinition RelicDefinition;
+} RelicData;    
+typedef struct Inventory { 
+    WeaponData weaponDatas[MAX_WEAPON_CAPACITY]; 
+    RelicData relicDatas[MAX_RELIC_CAPACITY];
+} Inventory;
+typedef struct InventoryDefinitions {
+    WeaponDefinition weaponDefinitions[WEAPON_TYPE_COUNT][MAX_WEAPON_LEVEL];
+} InventoryDefinitions;
+typedef struct UpgradeOption {
+    UpgradeType type;
+    u8 level;
+    union { WeaponType weapon; RelicType relic; };
+} UpgradeOption;
+typedef struct LevelUpState {
+    bool bShowLevelUp;
+    UpgradeOption options[3];
+    u8 pendingCount;
+    u8 selectedIndex;
+} LevelUpState;
+typedef struct PlayerStats{
+    f32 currentXP;
+    f32 nextLevelXP;
+    u16 level;
+    f32 healthMultiplier;
+    f32 damageMultiplier;
+    f32 attackSpeedMultiplier;
+    f32 movementSpeedMultiplier;
+    f32 sizeMultiplier;
+    f32 lifeStealMultiplier;
+    f32 xpMultiplier; 
+} PlayerStats;
+typedef struct GameEventState {
+    GameEventType activeEventType;
+    f32 activeEventTimer;
+    f32 swarmCycleTimer;
+    f32 bossCycleTimer;
+} GameEventState;    
+typedef struct ActivePowerUp {
+    PowerUpType type;
+    f32 remainingTime;
+    bool bIsActive;
+} ActivePowerUp;
+typedef struct GlobalVariables{
+    Assets assets;
+    Camera2D camera;
+    PlayerStats playerStats;
+    Entity entities[MAX_ENTITIES_AMOUNT];
+    u16 lastEntityIndex;
+    u16 playerIndex;
+    DropsDefinition dropsDefinition;
+    Inventory inventory;
+    InventoryDefinitions InventoryDefinitions;
+    SpawnerData spawnerData;
+    f32 gameTimer;
+    u16 deathAuraIndex;
+    u16 nextEntityId; 
+    bool bShowInventory; 
+    LevelUpState levelUpState; 
+    GameEventState eventState; 
+    ActivePowerUp activePowerUps[MAX_ACTIVE_POWERUPS]; 
+    char hudEventMessage[64]; 
+    f32 hudEventTimer; 
+} GlobalVariables;   
 // ~End of Structs
 
 // Declaration of Global Variables
