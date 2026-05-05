@@ -18,6 +18,7 @@ GlobalVariables globalVariables;
 
 i32 main(void)
 {
+    FILE *f = fopen("test.txt", "w"); if(f) { fprintf(f, "RUNNING"); fclose(f); }
     Core_InitGame();
 
     while (!Core_IsGameReadyToClose()) {
@@ -32,26 +33,41 @@ i32 main(void)
 }
 
 // ~Begin of Core Implementation
+void CustomLog(int msgType, const char *text, va_list args) {
+    FILE *file = fopen("log.txt", "a");
+    if (!file) return;
+    fprintf(file, "[%d] ", msgType);
+    vfprintf(file, text, args);
+    fprintf(file, "\n");
+    fclose(file);
+    vprintf(text, args); printf("\n");
+}
+
 void Core_InitGame() {
-    SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_WINDOW_UNDECORATED);
-    InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Arcade Survivors Reworked");
+    SetTraceLogCallback(CustomLog);
+    if (FileExists("log.txt")) remove("log.txt");
+    TraceLog(LOG_INFO, "CORE: Starting game initialization...");
+    // SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_WINDOW_UNDECORATED);
+    InitWindow(1920, 1080, "Arcade Survivors Reworked");
+    if (!IsWindowReady()) { TraceLog(LOG_ERROR, "CORE: Failed to initialize window!"); return; }
     SetRandomSeed(time(NULL));
-    // Initialize Audio and Assets
-    InitAudioDevice();
-    Assets_Init();
-    // Init Global Variables
-    globalVariables = (GlobalVariables){ .deathAuraIndex = 65535, .playerStats = Player_GeneratePlayerStats(), .camera = Player_GenerateCamera(), .spawnerData = Spawner_GenerateSpawnerData(), .dropsDefinition = {0.01f, 0.02f} };
-    Entity player = Player_GeneratePlayer();
-    Global_AddEntity(&player);
-    Weapon_Init();
-    Weapon_AddWeapon((WeaponType)GetRandomValue(1, WEAPON_TYPE_COUNT - 1));
+    TraceLog(LOG_INFO, "CORE: Initializing global variables...");
+    memset(&globalVariables, 0, sizeof(globalVariables));
+    globalVariables.deathAuraIndex = 65535;
+    globalVariables.playerStats = Player_GeneratePlayerStats();
+    globalVariables.camera = Player_GenerateCamera();
+    globalVariables.spawnerData = Spawner_GenerateSpawnerData();
+    globalVariables.dropsDefinition = (DropsDefinition){0.01f, 0.02f};
+    TraceLog(LOG_INFO, "CORE: Initializing audio and assets...");
+    InitAudioDevice(); Assets_Init();
+    TraceLog(LOG_INFO, "CORE: Generating player and weapons...");
+    Entity player = Player_GeneratePlayer(); Global_AddEntity(&player);
+    Weapon_Init(); Weapon_AddWeapon((WeaponType)GetRandomValue(1, WEAPON_TYPE_COUNT - 1));
     HUD_Init();
-    // Start Music
-    Music music = Assets_GetMusic(ASSET_MUSIC_TYPE_COMBAT);
-    SetMusicVolume(music, 0.5f);
-    PlayMusicStream(music);
-    SetTargetFPS(240);
-    DisableCursor();
+    TraceLog(LOG_INFO, "CORE: Setting up music and finishing init...");
+    Music music = Assets_GetMusic(ASSET_MUSIC_TYPE_COMBAT); SetMusicVolume(music, 0.5f); PlayMusicStream(music);
+    SetTargetFPS(240); DisableCursor();
+    TraceLog(LOG_INFO, "CORE: Game initialization complete.");
 }
 void Core_ProcessInput() {
     Entity* player = Global_GetPlayer();
@@ -126,13 +142,20 @@ i32 Core_IsGameReadyToClose() { return WindowShouldClose(); }
 const char* flashVS = "#version 330\nin vec3 vertexPosition;\nin vec2 vertexTexCoord;\nin vec4 vertexColor;\nout vec2 fragTexCoord;\nout vec4 fragColor;\nuniform mat4 mvp;\nvoid main() { fragTexCoord = vertexTexCoord; fragColor = vertexColor; gl_Position = mvp * vec4(vertexPosition, 1.0); }";
 const char* flashFS = "#version 330\nin vec2 fragTexCoord;\nin vec4 fragColor;\nout vec4 finalColor;\nuniform sampler2D texture0;\nuniform vec4 colDiffuse;\nuniform float flashIntensity;\nvoid main() { vec4 texelColor = texture(texture0, fragTexCoord); vec4 baseColor = texelColor * colDiffuse * fragColor; finalColor = mix(baseColor, vec4(1.0, 1.0, 1.0, baseColor.a), flashIntensity); }";
 void Assets_Init() {
+    TraceLog(LOG_INFO, "ASSETS: Loading sprites...");
     const char* sprites[] = {"assets/sprites/PlayerSheet.png", "assets/sprites/GrassTexture.png", "assets/sprites/BatTexture.png"};
-    const char* sounds[] = {"assets/sounds/DamageAudio.mp3", "assets/sounds/ExplosionAudio.ogg", "assets/sounds/LevelUpAudio.ogg", "assets/sounds/XpGainAudio.ogg", "assets/sounds/PlayerDamageAudio.ogg"};
-    for (i32 i=0; i<3; i++) globalVariables.assets.sprites[i] = LoadTexture(sprites[i]);
-    for (i32 i=0; i<5; i++) globalVariables.assets.sounds[i] = LoadSound(sounds[i]);
-    globalVariables.assets.musics[0] = LoadMusicStream("assets/music/CombatMusic.ogg");
+    for (i32 i=0; i<3; i++) {
+        globalVariables.assets.sprites[i + 1] = LoadTexture(sprites[i]);
+        if (globalVariables.assets.sprites[i + 1].id == 0) TraceLog(LOG_WARNING, "ASSETS: Failed to load sprite %s", sprites[i]);
+    }
+    TraceLog(LOG_INFO, "ASSETS: Loading sounds and music...");
+    const char* sounds[] = {"assets/sounds/PlayerDamageAudio.ogg", "assets/sounds/LevelUpAudio.ogg", "assets/sounds/XpGainAudio.ogg", "assets/sounds/DamageAudio.mp3", "assets/sounds/ExplosionAudio.ogg"};
+    for (i32 i=0; i<5; i++) globalVariables.assets.sounds[i + 1] = LoadSound(sounds[i]);
+    globalVariables.assets.musics[ASSET_MUSIC_TYPE_COMBAT] = LoadMusicStream("assets/music/CombatMusic.ogg");
+    TraceLog(LOG_INFO, "ASSETS: Loading shaders...");
     globalVariables.assets.flashShader = LoadShaderFromMemory(flashVS, flashFS);
     globalVariables.assets.flashIntensityLoc = GetShaderLocation(globalVariables.assets.flashShader, "flashIntensity");
+    TraceLog(LOG_INFO, "ASSETS: Initialization finished.");
 }
 DEFINE_ASSET_GETTER(Texture2D, Sprite, sprites, ASSET_SPRITE_TYPE_COUNT, AssetSpriteType)
 DEFINE_ASSET_GETTER(Sound, Sound, sounds, ASSET_SOUND_TYPE_COUNT, AssetSoundType)
